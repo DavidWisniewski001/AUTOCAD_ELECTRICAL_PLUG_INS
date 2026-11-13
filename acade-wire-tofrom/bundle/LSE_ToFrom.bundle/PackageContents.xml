@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copy the LSE_ToFrom.bundle folder to %APPDATA%\Autodesk\ApplicationPlugins\ (per user) or
+     C:\ProgramData\Autodesk\ApplicationPlugins\ (all users) and put the Release build output (DLL, tofrom.config.json,
+     optional TOFROM_LBL_H.dwg / TOFROM_LBL_V.dwg) in Contents\. -->
+<ApplicationPackage SchemaVersion="1.0" AutodeskProduct="AutoCAD" ProductType="Application"
+                    Name="LSE_ToFrom" AppVersion="1.0.0" Description="True To/From wire identifiers (FROMTAG:PIN/TOTAG:PIN) as a managed label layer driven by AutoCAD Electrical's from/to data, plus the CSV for the wire label printer."
+                    Author="Lake Shore Electric" ProductCode="{7B2E4F90-3C61-4D8A-9E57-2A1B6C8D0F31}" UpgradeCode="{7B2E4F90-3C61-4D8A-9E57-2A1B6C8D0F32}">
+  <CompanyDetails Name="Lake Shore Electric" />
+  <Components Description="AutoCAD Electrical 2026">
+    <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R25.1" SeriesMax="R25.1" />
+    <ComponentEntry AppName="LSE_ToFrom" ModuleName="./Contents/LSE_ToFrom.dll"
+                    AppDescription="LSE_ToFrom" LoadOnCommandInvocation="True" LoadOnAutoCADStartup="False">
+      <Commands GroupName="LSETOFROM">
+        <Command Global="LSETOFROM" Local="LSETOFROM" />
+        <Command Global="LSETOFROMEXPORT" Local="LSETOFROMEXPORT" />
+        <Command Global="LSETOFROMVALIDATE" Local="LSETOFROMVALIDATE" />
+        <Command Global="LSETOFROMDISCOVER" Local="LSETOFROMDISCOVER" />
+        <Command Global="LSETOFROMBLOCKS" Local="LSETOFROMBLOCKS" />
+        <Command Global="LSETOFROMSETTINGS" Local="LSETOFROMSETTINGS" />
+        <Command Global="LSETOFROMDIAG" Local="LSETOFROMDIAG" />
+      </Commands>
+    </ComponentEntry>
+  </Components>
+</ApplicationPackage>

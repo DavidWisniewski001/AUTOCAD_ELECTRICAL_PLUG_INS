@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- LSE_ToFrom: AutoCAD Electrical 2026 plugin (.NET 8). True To/From wire identifiers (FROMTAG:PIN/TOTAG:PIN) as a managed
+       label layer driven by AutoCAD Electrical's own from/to data, plus the CSV for the wire label printer.
+       Build on a workstation that has AutoCAD Electrical 2026 installed, or pass -p:AcadDir="<path to AutoCAD 2026>".
+       Without an install the AutoCAD.NET 25.1 reference package is used (compile-time only; nothing from it is copied). -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>LSE.AutoCADElectrical.WireToFrom</RootNamespace>
+    <AssemblyName>LSE_ToFrom</AssemblyName>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AcadDir Condition="'$(AcadDir)' == ''">C:\Program Files\Autodesk\AutoCAD 2026</AcadDir>
+    <HasAcad>false</HasAcad>
+    <HasAcad Condition="Exists('$(AcadDir)\acdbmgd.dll')">true</HasAcad>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(HasAcad)' == 'true'">
+    <Reference Include="accoremgd"><HintPath>$(AcadDir)\accoremgd.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="acdbmgd"><HintPath>$(AcadDir)\acdbmgd.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="acmgd"><HintPath>$(AcadDir)\acmgd.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(HasAcad)' != 'true'">
+    <PackageReference Include="AutoCAD.NET" Version="25.1.0" ExcludeAssets="runtime" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="tests\**" />
+    <!-- The config JSON (format, delimiters, scope, label layer, missing-pin text, database queries) lands next to the DLL. -->
+    <None Include="config\tofrom.config.json" Link="tofrom.config.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

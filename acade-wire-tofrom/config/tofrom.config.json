@@ -1,0 +1,92 @@
+// LSE_ToFrom configuration. Sits next to LSE_ToFrom.dll; LSETOFROMSETTINGS can point at another copy (for example on the vault).
+// Comments and trailing commas are allowed. Every key is optional; a missing key takes the default shown here.
+//
+// Identifier tokens: {FROM} and {TO} are built with tagPinFormat; also {FROMTAG} {FROMPIN} {TOTAG} {TOPIN} {WIRENO}
+// {FROMLOC} {TOLOC} {FROMINST} {TOINST}. A blank pin shows missingPinText, a blank tag missingTagText, and each is listed
+// in the validation report. farEndFormat is the string printed for the To end of a wire (the label CSV); the schematic
+// shows one string per wire (format) at the end named by schematic.labelAt.
+{
+  "format": "{FROM}/{TO}",
+  "farEndFormat": "{TO}/{FROM}",
+  "tagPinFormat": "{TAG}:{PIN}",
+  "locationFormat": "{LOC}+{TAG}",
+  "missingPinText": "?",
+  "missingTagText": "?",
+  "includeLocation": false,
+  "uppercase": true,
+  "maxLength": 0,
+  "swapEnds": false,
+
+  // Where and how the label block goes on the schematic. The layer must not match the drawing's WIRELAYS patterns or its
+  // WIRENO_LAY; the tool refuses the drawing if it does. The blocks are imported from blockFolder (or the DLL folder)
+  // when <block>.dwg exists there, otherwise defined in the drawing; LSETOFROMBLOCKS writes the two DWGs.
+  "schematic": {
+    "labelAt": "from",
+    "labelLayer": "LSE_TOFROM",
+    "blockH": "TOFROM_LBL_H",
+    "blockV": "TOFROM_LBL_V",
+    "blockFolder": "",
+    "textAttribute": "TOFROM",
+    "nodeAttribute": "WIRENO",
+    "keyAttribute": "TFKEY",
+    "showNode": false,
+    "textHeight": 0.08,
+    "endOffset": 0.5,
+    "sideOffset": 0.0625,
+    "collisionDistance": 0.3,
+    "collisionStep": 0.25,
+    "collisionTries": 4,
+    "repositionOnRerun": false,
+    "deleteStale": true,
+    "wdmBlockName": "WD_M"
+  },
+
+  // CSV for the label printer (one row per wire end) and the report CSV (one row per wire, native report columns).
+  // encoding: utf8bom, utf8 or ansi. Files go to <project folder>\outputFolder; {PROJECT} and {DATE} expand in file names.
+  "csv": {
+    "delimiter": ",",
+    "encoding": "utf8bom",
+    "reverseAtFarEnd": true,
+    "outputFolder": "LSE_ToFrom",
+    "labelFile": "{PROJECT}_tofrom_labels.csv",
+    "reportFile": "{PROJECT}_tofrom_report.csv",
+    "validationFile": "{PROJECT}_tofrom_validation.txt"
+  },
+
+  // The project (scratch) database. UNVERIFIED on a 2026 seat: the table that holds the Wire From/To rows is not documented,
+  // so wireSql is empty until LSETOFROMDISCOVER has listed the database and written the SELECT here. The database is opened
+  // read-only; only SELECT statements are accepted. columns maps the roles the tool needs to the column names the query returns
+  // (* = required). drawingSql, if set, must return the drawing index in its first column and the file name in its second;
+  // without it DWGIX is taken as the 1-based position in the .wdp drawing list (drawingIndexBase).
+  "database": {
+    "pathPattern": "{FOLDER}\\{PROJECT}.mdb",
+    "providers": [ "Microsoft.ACE.OLEDB.16.0", "Microsoft.ACE.OLEDB.12.0", "Microsoft.Jet.OLEDB.4.0" ],
+    "wireSql": "",
+    "drawingSql": "",
+    "drawingIndexBase": 1,
+    "confidence": "unverified",
+    "note": "Fill wireSql from LSETOFROMDISCOVER. Expected columns per Autodesk Help (Wire From/To report): WIRENO, CMP1, PIN1, CMP2, PIN2, WIREHDL1, WIREHDL2, CMPHDL1, CMPHDL2, DWGIX1, DWGIX2.",
+    "columns": {
+      "wireNo": "WIRENO", "cmp1": "CMP1", "pin1": "PIN1", "cmp2": "CMP2", "pin2": "PIN2",
+      "wireHdl1": "WIREHDL1", "wireHdl2": "WIREHDL2", "cmpHdl1": "CMPHDL1", "cmpHdl2": "CMPHDL2",
+      "dwgIx1": "DWGIX1", "dwgIx2": "DWGIX2",
+      "loc1": "LOC1", "inst1": "INST1", "loc2": "LOC2", "inst2": "INST2",
+      "dwgName1": "DWGNAM1", "dwgName2": "DWGNAM2"
+    },
+    "candidateColumns": [ "WIRENO", "CMP1", "PIN1", "CMP2", "PIN2", "WIREHDL1", "WIREHDL2", "CMPHDL1", "CMPHDL2", "DWGIX1", "DWGIX2" ]
+  },
+
+  // A Wire From/To report saved to a file (Reports > Schematic > Wire From/To > Save to File) as the alternative data source.
+  // The header row must carry these column names; delimiter blank = detect comma, semicolon or tab.
+  "reportFile": {
+    "hasHeader": true,
+    "delimiter": "",
+    "columns": {
+      "wireNo": "WIRENO", "cmp1": "CMP1", "pin1": "PIN1", "cmp2": "CMP2", "pin2": "PIN2",
+      "wireHdl1": "WIREHDL1", "wireHdl2": "WIREHDL2", "cmpHdl1": "CMPHDL1", "cmpHdl2": "CMPHDL2",
+      "dwgIx1": "DWGIX1", "dwgIx2": "DWGIX2",
+      "loc1": "LOC1", "inst1": "INST1", "loc2": "LOC2", "inst2": "INST2",
+      "dwgName1": "DWGNAM1", "dwgName2": "DWGNAM2"
+    }
+  }
+}

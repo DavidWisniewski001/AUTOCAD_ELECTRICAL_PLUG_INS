@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Console smoke test for the parts of LSE_ToFrom that run without AutoCAD: config, project file, report import, identifier
+       composition, planning against fake drawings, CSV export, validation, the run transaction and rollback (through fake
+       drawing bridges). Build LSE_ToFrom in Release first, then from the repository root:
+         dotnet run -c Release - -project acade-wire-tofrom\tests\LSE_ToFrom.SmokeTest - - <abs path to acade-wire-tofrom>
+       It never touches a real project: everything happens in a temporary folder. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="LSE_ToFrom"><HintPath>..\..\bin\Release\LSE_ToFrom.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

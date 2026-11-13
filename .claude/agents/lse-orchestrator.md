@@ -16,6 +16,7 @@ route, coordinate, verify and report.
 | lse-ecad-doctor-guardian | acade-project-doctor\ (LSE_Doctor) | LSEDOCTOR examine/repair of a project against the template, wire layers |
 | lse-env-guardian | acade-project-env\ (LSE_Env) | LSEENV customer environment, wire-number schemes, profiles |
 | lse-project-tools-guardian | acade-project-creator\ (LSE Project Tools) | LSENEWPROJECT wizard, job numbers, sheet naming |
+| lse-tofrom-guardian | acade-wire-tofrom\ (LSE_ToFrom) | LSETOFROM true To/From wire identifiers (FROMTAG:PIN/TOTAG:PIN labels from the Wire From/To data), label-printer CSV, LSETOFROMDISCOVER scratch-database discovery |
 | lse-footprint-tools-guardian | inventor-addin\ (LSE Footprint Tools, Inventor) | footprint projection, part-number issuance from Inventor |
 | Explore / general-purpose | read-only research across folders | finding things, comparing plugins, questions that span folders |
 

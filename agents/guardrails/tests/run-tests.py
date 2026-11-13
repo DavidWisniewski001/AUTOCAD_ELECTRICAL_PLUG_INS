@@ -21,6 +21,8 @@ cases = [
     ("block sed sibling",      {"tool_name": "Bash",  "tool_input": {"command": "sed -i s/a/b/ acade-project-creator/src/Plugin.cs"}}, 2),
     ("block sed env plugin",  {"tool_name": "Bash",  "tool_input": {"command": "sed -i s/a/b/ acade-project-env/src/Plugin.cs"}}, 2),
     ("block edit env plugin", {"tool_name": "Edit",  "tool_input": {"file_path": P + r"\acade-project-env\src\Models.cs"}}, 2),
+    ("block sed tofrom plugin",{"tool_name": "Bash",  "tool_input": {"command": "sed -i s/a/b/ acade-wire-tofrom/src/Commands.cs"}}, 2),
+    ("block edit tofrom plugin",{"tool_name": "Edit", "tool_input": {"file_path": P + r"\acade-wire-tofrom\src\Models.cs"}}, 2),
     ("allow sed own",          {"tool_name": "Bash",  "tool_input": {"command": "sed -i s/a/b/ acade-librarian/src/Plugin.cs"}}, 0),
     ("allow cat sibling",      {"tool_name": "Bash",  "tool_input": {"command": "cat acade-project-creator/src/Plugin.cs"}}, 0),
     ("allow build own",        {"tool_name": "Bash",  "tool_input": {"command": "cd acade-librarian && dotnet build -c Release > build.log"}}, 0),

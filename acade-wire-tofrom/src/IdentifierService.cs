@@ -1,0 +1,61 @@
+namespace LSE.AutoCADElectrical.WireToFrom;
+// The pure engine: no AutoCAD and no COM, so the smoke test covers it. Builds the identifier strings from from/to rows,
+// resolves rows to drawings, and plans per-drawing label changes against what the drawings already hold.
+public static class IdentifierService {
+ const StringComparison Cs=StringComparison.OrdinalIgnoreCase;static readonly StringComparer Ci=StringComparer.OrdinalIgnoreCase;
+ public static WireRow MapRow(Func<string,string> get,ColumnMap m,int line){string G(string col)=>col.Trim().Length==0?"":get(col).Trim();
+  return new WireRow{Line=line,WireNo=G(m.WireNo),Cmp1=G(m.Cmp1),Pin1=G(m.Pin1),Cmp2=G(m.Cmp2),Pin2=G(m.Pin2),Loc1=G(m.Loc1),Inst1=G(m.Inst1),Loc2=G(m.Loc2),Inst2=G(m.Inst2),WireHdl1=Handle(G(m.WireHdl1)),WireHdl2=Handle(G(m.WireHdl2)),CmpHdl1=Handle(G(m.CmpHdl1)),CmpHdl2=Handle(G(m.CmpHdl2)),DwgIx1=G(m.DwgIx1),DwgIx2=G(m.DwgIx2),DwgName1=G(m.DwgName1),DwgName2=G(m.DwgName2)};}
+ public static string Handle(string h){h=h.Trim();if(h.StartsWith("0x",Cs))h=h[2..];return h.TrimStart('0').Length==0&&h.Length>0?"0":h.ToUpperInvariant();}
+ public static string TagPin(string tag,string pin,string loc,ToFromConfig c){string t=tag.Trim().Length==0?c.MissingTagText:tag.Trim();if(c.IncludeLocation&&loc.Trim().Length>0)t=c.LocationFormat.Replace("{LOC}",loc.Trim(),Cs).Replace("{TAG}",t,Cs);
+  string p=pin.Trim().Length==0?c.MissingPinText:pin.Trim();return c.TagPinFormat.Replace("{TAG}",t,Cs).Replace("{PIN}",p,Cs);}
+ public static string Compose(WireRow r,bool farEnd,ToFromConfig c){string fmt=farEnd?c.FarEndFormat:c.Format;string text=fmt.Replace("{FROM}",TagPin(r.Cmp1,r.Pin1,r.Loc1,c),Cs).Replace("{TO}",TagPin(r.Cmp2,r.Pin2,r.Loc2,c),Cs)
+   .Replace("{FROMTAG}",r.Cmp1.Length>0?r.Cmp1:c.MissingTagText,Cs).Replace("{TOTAG}",r.Cmp2.Length>0?r.Cmp2:c.MissingTagText,Cs).Replace("{FROMPIN}",r.Pin1.Length>0?r.Pin1:c.MissingPinText,Cs).Replace("{TOPIN}",r.Pin2.Length>0?r.Pin2:c.MissingPinText,Cs)
+   .Replace("{FROMLOC}",r.Loc1,Cs).Replace("{TOLOC}",r.Loc2,Cs).Replace("{FROMINST}",r.Inst1,Cs).Replace("{TOINST}",r.Inst2,Cs).Replace("{WIRENO}",r.WireNo,Cs).Trim();
+  if(c.Uppercase)text=text.ToUpperInvariant();return c.MaxLength>0&&text.Length>c.MaxLength?text[..c.MaxLength]:text;}
+ public static string Key(string wireHandle,int end)=>Handle(wireHandle)+"/"+end;
+ public static LabelEnd MakeEnd(WireRow r,int end,ToFromConfig c,bool forCsv){bool far=end==2;string handle=far?(r.WireHdl2.Length>0?r.WireHdl2:r.WireHdl1):r.WireHdl1;
+  return new LabelEnd{Row=r,End=end,Drawing=far?r.Drawing2:r.Drawing1,Sheet=far?r.Sheet2:r.Sheet1,WireHandle=handle,ComponentHandle=far?r.CmpHdl2:r.CmpHdl1,Key=handle.Length>0?Key(handle,end):"",Node=r.WireNo,
+   Text=Compose(r,far&&forCsv&&c.Csv.ReverseAtFarEnd,c),Tag=far?r.Cmp2:r.Cmp1,Pin=far?r.Pin2:r.Pin1,OtherTag=far?r.Cmp1:r.Cmp2,OtherPin=far?r.Pin1:r.Pin2};}
+ public static void Resolve(List<WireRow> rows,ProjectInfo p,DatabaseConfig d,Dictionary<int,string> dbDrawings,List<Issue> issues){var unresolved=new HashSet<string>(Ci);
+  foreach(var r in rows){(r.Drawing1,r.Sheet1)=One(r.DwgName1,r.DwgIx1);(r.Drawing2,r.Sheet2)=One(r.DwgName2,r.DwgIx2);if(r.Drawing2.Length==0&&r.DwgName2.Length==0&&r.DwgIx2.Length==0){r.Drawing2=r.Drawing1;r.Sheet2=r.Sheet1;}}
+  (string,string) One(string name,string ix){ProjectDrawing? dr=p.ByName(name);if(dr is null&&int.TryParse(ix.Trim(),out int i)){if(dbDrawings.TryGetValue(i,out var n))dr=p.ByName(n);dr??=p.ByIndex(i-d.DrawingIndexBase+1);}
+   if(dr is null){string what=name.Length>0?name:ix.Length>0?"index "+ix:"";if(what.Length>0&&unresolved.Add(what))issues.Add(new Issue{Kind=IssueKind.DrawingUnresolved,Detail="drawing "+what+" is not in the project's drawing list (check database.drawingIndexBase or database.drawingSql)"});return ("",ix.Trim());}
+   return (dr.Path,ix.Trim().Length>0?ix.Trim():dr.Index.ToString());}}
+ public static RunPlan Plan(ProjectInfo p,List<WireRow> source,ToFromConfig c,AppSettings s,HostBridge bridge,bool annotate,string? onlyDrawing,Action<string>? progress=null){
+  var plan=new RunPlan{Project=p,Config=c,Rows=source,AnnotationRequested=annotate};var rows=c.SwapEnds?source.Select(r=>r.Swapped()).ToList():source;var issues=plan.Issues;void Log(string m){plan.Log.Add(m);progress?.Invoke(m);}
+  Log($"Planned: {DateTime.Now:s} by {Environment.UserName}");Log("Project: "+p.WdpPath+$"  ({p.Drawings.Count} drawing(s))");Log("Config: "+c.Source+"  format "+c.Format+(c.SwapEnds?"  (ends swapped)":""));Log($"Rows: {rows.Count}");
+  foreach(var r in rows){if(r.Cmp1.Length==0)issues.Add(new Issue{Kind=IssueKind.MissingTag,Drawing=r.Drawing1,WireNo=r.WireNo,Detail="From component has no tag (row "+r.Line+")"});if(r.Cmp2.Length==0)issues.Add(new Issue{Kind=IssueKind.MissingTag,Drawing=r.Drawing2,WireNo=r.WireNo,Detail="To component has no tag (row "+r.Line+")"});
+   if(r.Pin1.Length==0)issues.Add(new Issue{Kind=IssueKind.MissingPin,Drawing=r.Drawing1,WireNo=r.WireNo,Detail=(r.Cmp1.Length>0?r.Cmp1:"?")+" has no pin number at the From end; label shows "+c.MissingPinText});if(r.Pin2.Length==0)issues.Add(new Issue{Kind=IssueKind.MissingPin,Drawing=r.Drawing2,WireNo=r.WireNo,Detail=(r.Cmp2.Length>0?r.Cmp2:"?")+" has no pin number at the To end; label shows "+c.MissingPinText});
+   plan.CsvEnds.Add(MakeEnd(r,1,c,true));plan.CsvEnds.Add(MakeEnd(r,2,c,true));
+   bool from=!c.Schematic.LabelAt.Equals("to",Cs),to=!c.Schematic.LabelAt.Equals("from",Cs);if(from)plan.SchematicEnds.Add(MakeEnd(r,1,c,false));if(to)plan.SchematicEnds.Add(MakeEnd(r,2,c,false));}
+  foreach(var e in plan.SchematicEnds.Where(e=>e.WireHandle.Length==0).ToList()){issues.Add(new Issue{Kind=IssueKind.WireNotFound,Drawing=e.Drawing,WireNo=e.Row.WireNo,Detail="no wire handle in the data for end "+e.End+" (row "+e.Row.Line+"); no label"});plan.SchematicEnds.Remove(e);}
+  foreach(var e in plan.SchematicEnds.Where(e=>e.Drawing.Length==0).ToList()){issues.Add(new Issue{Kind=IssueKind.WireNotFound,WireNo=e.Row.WireNo,Detail="end "+e.End+" of row "+e.Row.Line+" is in a drawing that could not be resolved; no label"});plan.SchematicEnds.Remove(e);}
+  foreach(var g in plan.SchematicEnds.GroupBy(e=>e.Drawing+"|"+e.Key,Ci).Where(g=>g.Count()>1)){int n=1;foreach(var e in g.Skip(1)){n++;issues.Add(new Issue{Kind=IssueKind.DuplicateKey,Drawing=e.Drawing,WireNo=e.Row.WireNo,Detail="wire handle "+e.WireHandle+" end "+e.End+" appears in "+g.Count()+" rows; this one is keyed "+e.Key+"#"+n});e.Key=e.Key+"#"+n;}}
+  Log($"Schematic labels wanted: {plan.SchematicEnds.Count} ({c.Schematic.LabelAt} end)  |  CSV rows: {plan.CsvEnds.Count}");
+  if(!annotate){Log("Drawing annotation not requested: export and validation only.");return plan;}
+  if(!bridge.CanRead){Log("No drawing reader available (outside AutoCAD): drawings not planned.");return plan;}
+  var paths=p.Drawings.Where(d=>!d.ReferenceOnly).Select(d=>d.Path).Concat(plan.SchematicEnds.Select(e=>e.Drawing)).Distinct(Ci).ToList();
+  if(onlyDrawing is not null){paths=paths.Where(x=>x.Equals(onlyDrawing,Cs)).ToList();if(paths.Count==0)paths.Add(onlyDrawing);Log("Scope: current drawing only ("+Path.GetFileName(onlyDrawing)+")");}
+  foreach(string path in paths){progress?.Invoke("Reading "+Path.GetFileName(path));var dp=new DrawingPlan{Path=path};plan.Drawings.Add(dp);var ends=plan.SchematicEnds.Where(e=>e.Drawing.Equals(path,Cs)).ToList();
+   DrawingLabels st;try{st=bridge.ReadLabels!(path);}catch(Exception ex){st=new DrawingLabels{Path=path,Exists=File.Exists(path),Error=ex.Message};}dp.State=st;foreach(var e in ends)e.Sheet=st.Sheet.Length>0?st.Sheet:e.Sheet;
+   if(!st.Readable){dp.SkipReason=!st.Exists?"file not found":st.Locked?"locked by another user or session":st.Error;issues.Add(new Issue{Kind=IssueKind.DrawingSkipped,Drawing=path,Detail=dp.SkipReason+(ends.Count>0?$"; {ends.Count} label(s) not written":"")});foreach(var e in ends)dp.Changes.Add(new LabelChange{Drawing=path,Key=e.Key,Action=LabelAction.Skip,Text=e.Text,Node=e.Node,WireHandle=e.WireHandle,ComponentHandle=e.ComponentHandle,End=e,Note=dp.SkipReason,Selected=false});continue;}
+   string conflict=LayerConflict(st,c.Schematic);if(conflict.Length>0){dp.SkipReason=conflict;issues.Add(new Issue{Kind=IssueKind.LayerConflict,Drawing=path,Detail=conflict});continue;}
+   var existing=new Dictionary<string,List<ExistingLabel>>(Ci);foreach(var l in st.Labels){string k=l.Key.Trim();if(!existing.TryGetValue(k,out var list)){list=new();existing[k]=list;}list.Add(l);}
+   foreach(var e in ends){var ch=new LabelChange{Drawing=path,Key=e.Key,Text=e.Text,Node=e.Node,WireHandle=e.WireHandle,ComponentHandle=e.ComponentHandle,End=e};dp.Changes.Add(ch);
+    if(!existing.TryGetValue(e.Key,out var have)||have.Count==0){ch.Action=LabelAction.Insert;continue;}var first=have[0];ch.ExistingHandle=first.Handle;ch.Existing=first.Text;
+    bool same=first.Text.Trim().Equals(e.Text,StringComparison.Ordinal)&&(first.Node.Trim().Equals(e.Node.Trim(),StringComparison.Ordinal)||c.Schematic.NodeAttribute.Length==0);ch.Action=same&&!c.Schematic.RepositionOnRerun?LabelAction.Keep:LabelAction.Update;if(!same)ch.Note="was \""+first.Text+"\"";else if(c.Schematic.RepositionOnRerun)ch.Note="re-placed at the wire end (repositionOnRerun)";
+    for(int i=1;i<have.Count;i++)dp.Changes.Add(new LabelChange{Drawing=path,Key=e.Key,Action=LabelAction.Delete,Existing=have[i].Text,ExistingHandle=have[i].Handle,Note="duplicate label with the same key"});existing.Remove(e.Key);}
+   foreach(var (k,list) in existing)foreach(var l in list){bool del=c.Schematic.DeleteStale;dp.Changes.Add(new LabelChange{Drawing=path,Key=k,Action=del?LabelAction.Delete:LabelAction.Skip,Existing=l.Text,ExistingHandle=l.Handle,Note=del?"no wire in the data for this label (stale)":"stale label kept: deleteStale is off",Selected=del});
+    issues.Add(new Issue{Kind=IssueKind.StaleLabel,Drawing=path,WireNo=l.Node,Detail="label \""+l.Text+"\" (key "+k+") has no wire in the data"+(del?"; will be deleted":"; kept")});}}
+  foreach(var dp in plan.Drawings)Log("  "+dp.Name+": "+dp.Summary);
+  Log($"Issues: {issues.Count} ({string.Join(", ",Enum.GetValues<IssueKind>().Where(k=>plan.Count(k)>0).Select(k=>plan.Count(k)+" "+k))})");return plan;}
+ public static string LayerConflict(DrawingLabels st,SchematicConfig sc){string layer=sc.LabelLayer;if(st.WireNoLayer.Length>0&&st.WireNoLayer.Equals(layer,Cs))return "label layer "+layer+" is this drawing's wire-number layer (WIRENO_LAY); change schematic.labelLayer";
+  foreach(string pat in st.WireLayers)if(Wc(layer,pat))return "label layer "+layer+" matches the wire layer pattern '"+pat+"' (WIRELAYS); change schematic.labelLayer";return "";}
+ public static bool Wc(string name,string pattern){pattern=pattern.Trim();if(pattern.Length==0)return false;return System.Text.RegularExpressions.Regex.IsMatch(name,"^"+System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*",".*").Replace("\\?",".")+"$",System.Text.RegularExpressions.RegexOptions.IgnoreCase);}
+ public static string Render(RunPlan plan){var x=new List<string>(plan.Log){""};
+  foreach(var dp in plan.Drawings){x.Add(dp.Name+": "+dp.Summary);foreach(var ch in dp.Changes.OrderBy(c=>c.Action==LabelAction.Keep?1:0).ThenBy(c=>c.Key,Ci))x.Add($"  {ch.ActionText,-18} {ch.Key,-14} \"{ch.Text}\"{(ch.Existing.Length>0&&ch.Action!=LabelAction.Keep?"  (now \""+ch.Existing+"\")":"")}{(ch.Note.Length>0?"  | "+ch.Note:"")}");}
+  if(plan.Issues.Count>0){x.Add("");x.Add("Validation:");foreach(var i in plan.Issues)x.Add("  "+i.Text);}return string.Join(Environment.NewLine,x);}
+ public static string NothingToDo(RunPlan plan){if(plan.Rows.Count==0)return "The data source returned no from/to rows. Run AEWIRE and AEWIRENO, then refresh the project database (or save a Wire From/To report) and try again.";
+  if(plan.SchematicEnds.Count==0)return "No wire end could be labelled: every row lacks a wire handle or a resolvable drawing. See the validation list.";
+  if(plan.Drawings.All(d=>d.SkipReason.Length>0))return "Every drawing was skipped (locked, missing or a layer conflict). See the validation list.";return "Every label is already up to date. Nothing to write.";}
+}
