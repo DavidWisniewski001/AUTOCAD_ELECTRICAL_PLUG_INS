@@ -103,6 +103,11 @@ if (args.Length >= 3)
     Check("create: Load now shows the part as Mapped to that drawing", FootprintMappingService.Load(ms).First(r => r.Manufacturer == Mfr && r.Catalog == K1) is { Status: FootprintMappingService.Mapped } m && m.BlkNam == fa);
     Check("create: Existing() returns the stored path", FootprintMappingService.Existing(ms, Mfr, K1) == fa);
     Check("create: default_cat.mdb not touched by the mapping", File.ReadAllBytes(mdb).SequenceEqual(afterTwo));
+    // r7: a lookup copy that Vault left read-only is refused before the lock and the backups
+    byte[] fpRo = File.ReadAllBytes(lookupMdb); int bkRo = Directory.GetDirectories(libBk).Length; File.SetAttributes(lookupMdb, FileAttributes.ReadOnly);
+    err = Try(() => FootprintMappingService.Execute(ms, Req(Mfr, "ZZ-RO-KEY", fa)));
+    File.SetAttributes(lookupMdb, FileAttributes.Normal);
+    Check("read-only lookup refused before writing: names the file, Nothing was changed, MDB identical, no backup, no lock", err is not null && err.Contains(lookupMdb) && err.Contains("Nothing was changed") && File.ReadAllBytes(lookupMdb).SequenceEqual(fpRo) && Directory.GetDirectories(libBk).Length == bkRo && !File.Exists(LibraryLock.PathFor(menuDir)), err ?? "");
 
     byte[] fpAfterCreate = File.ReadAllBytes(lookupMdb); int bkCount = Directory.GetDirectories(libBk).Length;
     err = Try(() => FootprintMappingService.Execute(ms, Req(Mfr, K1, fb)));
@@ -205,6 +210,11 @@ else Console.WriteLine("SKIP footprint mapping checks: pass footprint_lookup.mdb
     var batch2 = CatalogTransactionService.SetSymbols(ss, std, new[] { L(r1, C1, "ZZ_STOCK_C", true), L(r2, C2, "ZZ_STOCK_C") });
     Check("the same batch succeeds when nothing fails (2 rows, one backup)", batch2.Written == 2 && Sym(r1) == "ZZ_STOCK_C" && Sym(r2) == "ZZ_STOCK_C" && RowDump(r1.PartNumber) == dump1 && RowDump(r2.PartNumber) == dump2 && RowCount() == count0);
     Check("symbol libraries untouched (3 files, nothing written)", Directory.GetFiles(symRoot, "*", SearchOption.AllDirectories).Length + Directory.GetFiles(stockRoot, "*", SearchOption.AllDirectories).Length == 3);
+    // r7: a catalog copy that Vault left read-only is refused before the lock and the backup
+    byte[] catRo = File.ReadAllBytes(mdb); int bkRo2 = Directory.GetDirectories(backups).Length; File.SetAttributes(mdb, FileAttributes.ReadOnly);
+    err = TryS(() => CatalogTransactionService.SetSymbols(ss, std, new[] { L(r1, C1, "ZZ_SYM_A", true) }));
+    File.SetAttributes(mdb, FileAttributes.Normal);
+    Check("read-only catalog refused before writing: names the file, Nothing was changed, catalog identical, no backup, no lock", err is not null && err.Contains(mdb) && err.Contains("Nothing was changed") && File.ReadAllBytes(mdb).SequenceEqual(catRo) && Directory.GetDirectories(backups).Length == bkRo2 && !File.Exists(Path.Combine(dir, "LSE_PartNumber.lock")), err ?? "");
 }
 Console.WriteLine($"{pass} passed, {fail} failed. Sandbox: {dir}");
 return fail == 0 ? 0 : 1;
