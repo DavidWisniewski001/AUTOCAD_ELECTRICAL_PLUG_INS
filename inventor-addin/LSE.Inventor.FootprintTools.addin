@@ -1,0 +1,17 @@
+<Addin Type="Standard">
+  <!-- Copy this file into one of Inventor's add-in folders, e.g.
+       %APPDATA%\Autodesk\Inventor 2026\Addins\   or   C:\ProgramData\Autodesk\Inventor Addins\
+       <Assembly> may be a full path or a path relative to this file. -->
+  <ClassId>{55D0C0CC-1B4A-49A9-8008-A4FBFF38A7AC}</ClassId>
+  <ClientId>{55D0C0CC-1B4A-49A9-8008-A4FBFF38A7AC}</ClientId>
+  <DisplayName>LSE Footprint Tools</DisplayName>
+  <Description>Import an STL/STEP model, pick the view to project, generate an AutoCAD Electrical footprint and issue an LSE part number into default_cat.mdb.</Description>
+  <Assembly>LSE.Inventor.FootprintTools.dll</Assembly>
+  <OSType>Win64</OSType>
+  <LoadOnStartUp>1</LoadOnStartUp>
+  <UserUnloadable>1</UserUnloadable>
+  <Hidden>0</Hidden>
+  <SupportedSoftwareVersionGreaterThan>29..</SupportedSoftwareVersionGreaterThan>
+  <DataVersion>1</DataVersion>
+  <UserInterfaceVersion>1</UserInterfaceVersion>
+</Addin>

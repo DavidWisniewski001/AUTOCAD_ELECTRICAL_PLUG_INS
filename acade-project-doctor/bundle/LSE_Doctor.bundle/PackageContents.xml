@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copy the LSE_Doctor.bundle folder to %APPDATA%\Autodesk\ApplicationPlugins\ (per user) or
+     C:\ProgramData\Autodesk\ApplicationPlugins\ (all users) and put the Release build output in Contents\. -->
+<ApplicationPackage SchemaVersion="1.0" AutodeskProduct="AutoCAD" ProductType="Application"
+                    Name="LSE_Doctor" AppVersion="1.0.0" Description="Examines and repairs AutoCAD Electrical projects against the LSE custom project template."
+                    Author="Lake Shore Electric" ProductCode="{9D4B7A21-3C6E-4F0A-8E7B-5A1C2D3E4F10}" UpgradeCode="{9D4B7A21-3C6E-4F0A-8E7B-5A1C2D3E4F11}">
+  <CompanyDetails Name="Lake Shore Electric" />
+  <Components Description="AutoCAD Electrical 2026">
+    <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R25.1" SeriesMax="R25.1" />
+    <ComponentEntry AppName="LSE_Doctor" ModuleName="./Contents/LSE_Doctor.dll"
+                    AppDescription="LSE_Doctor" LoadOnCommandInvocation="True" LoadOnAutoCADStartup="False">
+      <Commands GroupName="LSEDOCTOR">
+        <Command Global="LSEDOCTOR" Local="LSEDOCTOR" />
+        <Command Global="LSEDOCTORSCAN" Local="LSEDOCTORSCAN" />
+        <Command Global="LSEDOCTORSETTINGS" Local="LSEDOCTORSETTINGS" />
+        <Command Global="LSEDOCTORDIAG" Local="LSEDOCTORDIAG" />
+        <Command Global="LSEDOCTORHELP" Local="LSEDOCTORHELP" />
+      </Commands>
+    </ComponentEntry>
+  </Components>
+</ApplicationPackage>

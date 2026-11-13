@@ -1,0 +1,60 @@
+{
+ // LSE_Doctor rules. Point LSEDOCTORSETTINGS at a shared copy so every engineer repairs projects to the same standard.
+ // The standard itself is the LSE custom project template (.wdp + .wdt + _wdtitle.wdl) named in LSEDOCTORSETTINGS;
+ // this file only says HOW the project is compared with it.
+ //
+ // descriptionLineCount                 how many *[n] project description lines every project must have (0 = as many as the template has).
+ // fillBlankDescriptionsWithPlaceholder a missing or blank *[n] line gets the template's placeholder text (PROJECT NAME, #####, CUST 1 ...).
+ //                                      Description lines that already hold text are never changed.
+ // enforceOptions / enforceProperties   true: a +[n] / ?[n] line whose value differs from the template is replaced (ticked by default).
+ //                                      false: only missing lines are added; differences are listed but left unticked.
+ // pathListMode                         "replace": library path lists (+[1], +[3]) become exactly the template list.
+ //                                      "merge":   template paths first, then any extra paths the project already had.
+ // pathListOptions / pathOptions        which +[n] lines are ';'-separated path lists and which are single paths (compared case-insensitively).
+ // protectedOptions / protectedProperties  +[n] / ?[n] indexes the doctor reports as information and never ticks by itself (you can still tick them in the grid).
+ // requireLabelFile / enforceLabels     <project>_wdtitle.wdl must exist (copied from the template) / differing LINEn labels are replaced.
+ // requireMappingFile / enforceMappings <project>.wdt must exist (copied from the template) / differing attribute mappings are replaced.
+ // requireProjectConfigurationFile      true: a missing <project>.aepx is an error and is created. false: reported as information only.
+ // wdmBlockName                         the AutoCAD Electrical drawing-settings block every drawing must carry.
+ // titleBlockNames                      title block names (wildcards allowed) every drawing should carry; empty = take them from the template .wdt BLOCK line.
+ // labels                               friendly names for +[n] ("+1") and ?[n] ("?5") lines shown in the findings grid. *[n] names come from the template .wdl.
+ //
+ // Wire layers (only with "Check every drawing" on; the standard is the template DRAWING-#.dwg next to the template .wdp):
+ // checkWireLayers                      compare each drawing's wire layers and WD_M wire-layer settings with the template drawing.
+ // enforceWireLayers                    true: differing WD_M wire-layer values and off-standard layer properties are repaired (ticked by default).
+ // purgeUnusedWireLayers                true: a wire layer the template does not have, with nothing drawn on it, is purged (ticked by default).
+ //                                      A non-standard wire layer that still carries entities is only reported.
+ // wireLayerAttributes                  WD_M attributes that name wire layers; compared when the template WD_M carries them.
+ // wireLayerListAttributes              which of those hold a comma-delimited list (wildcards allowed) rather than one layer name.
+ // wireLayerXdataApps                   registered-application names (wildcards allowed) whose xdata on a layer marks it as an AutoCAD Electrical wire type.
+ // neverPurgeLayers                     layers the doctor never purges, whatever else says so.
+ "descriptionLineCount": 0,
+ "fillBlankDescriptionsWithPlaceholder": true,
+ "enforceOptions": true,
+ "enforceProperties": true,
+ "pathListMode": "replace",
+ "pathListOptions": [ 1, 3 ],
+ "pathOptions": [ 2, 4 ],
+ "protectedOptions": [ ],
+ "protectedProperties": [ ],
+ "requireLabelFile": true,
+ "enforceLabels": true,
+ "requireMappingFile": true,
+ "enforceMappings": true,
+ "requireProjectConfigurationFile": false,
+ "wdmBlockName": "WD_M",
+ "titleBlockNames": [ ],
+ "checkWireLayers": true,
+ "enforceWireLayers": true,
+ "purgeUnusedWireLayers": true,
+ "wireLayerAttributes": [ "WIRELAYS", "WIRENO_LAY", "WIRECOPY_LAY", "WIREFIXED_LAY", "WIREREF_LAY", "FAN_INOUT_LAYS" ],
+ "wireLayerListAttributes": [ "WIRELAYS", "FAN_INOUT_LAYS" ],
+ "wireLayerXdataApps": [ "VIA_WD*" ],
+ "neverPurgeLayers": [ "0", "DEFPOINTS" ],
+ "labels": {
+  "+1": "Schematic symbol library paths",
+  "+2": "Schematic icon menu (.dat)",
+  "+3": "Panel footprint library paths",
+  "+4": "Panel icon menu (.dat)"
+ }
+}

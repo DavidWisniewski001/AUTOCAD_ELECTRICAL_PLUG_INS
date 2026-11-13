@@ -1,0 +1,14 @@
+{
+  "name": "LSE Standard",
+  "customer": "",
+  "description": "Back to the LSE custom project template: sequential %N wire numbers, %F%N tags. Use this to return a job to the house standard after a customer profile.",
+  "scheme": "LSE standard (template)",
+  "values": {},
+  "properties": {},
+  "options": {},
+  "drawing": {},
+  "fromTo": null,
+  "wdtSource": "",
+  "wdlSource": "",
+  "notes": "Values come from the live LSE template project named in LSEENVSETTINGS, so updating the template updates this profile."
+}

@@ -1,0 +1,120 @@
+{
+ // LSE_Env rules. Point LSEENVSETTINGS at a shared copy so every engineer uses the same setting map and wire schemes.
+ //
+ // AutoCAD Electrical keeps every project-wide setting twice: once in the project file as a ?[n] (property) or +[n]
+ // (option) line, and once per drawing in the WD_M block as an attribute. LSE_Env writes both. This file says WHERE each
+ // setting lives. Autodesk documents the WD_M attribute names but not the ?[n] indexes, so most rows below were inferred
+ // from the values in the LSE template (?[2]=S ?[3]=1 ?[4]=,A,B,C.. ?[5]=%F%N is the component-tag block, ?[6]=S ?[7]=100
+ // ?[8]=,A,B,C.. ?[9]=%N ?[10]=1 the wire-number block). Confirm them on a workstation with LSEENVSNAPSHOT: take snapshot A,
+ // change ONE setting in Project Properties, take snapshot B, and the diff names the ?[n] line and WD_M attribute that moved.
+ // Then correct "property" / "wdm" here and set "confidence" to "verified".
+ //
+ // wdmBlockName           the drawing-settings block.
+ // settings[]             the setting map. key = name used by profiles and schemes; label/group = what the dialogs show;
+ //                        property = ?[n] index (-1 = none); option = +[n] index (-1 = none); wdm = WD_M attribute tag ("" = none);
+ //                        kind = text | choice | number; choices = "value=meaning;value=meaning" for choice kinds;
+ //                        confidence = documented | inferred | unknown; protected = shown but never changed by a profile's
+ //                        "values" (a raw "properties"/"drawing" override in the profile can still change it).
+ //                        A setting with no property, option or wdm is "not mapped yet": LSE_Env lists it as information and
+ //                        tells the engineer to set it by hand until the snapshot diff has located it.
+ // wireSchemes[]          the presets LSEENVWIRES offers for quick switching. values = setting key -> value;
+ //                        fromTemplate = take the listed templateKeys from the LSE template project instead of fixed values;
+ //                        fromTo = present only on a From/To scheme (see below). A profile names a scheme and may override it.
+ // fromTo                 how From/To wire numbers are computed and written (also the defaults for a scheme's fromTo block):
+ //   format                tokens {FROM} {TO} {FROMPIN} {TOPIN} {SHEET} {DRAWING}; duplicateSuffix with {N} is appended to
+ //                         the 2nd, 3rd ... network that resolves to the same text; multiDevice = firstLast | all (joined with
+ //                         allSeparator); devicePriority = regex list, a device whose tag matches an earlier pattern becomes
+ //                         FROM; terminalsLast = terminal strips sort after other devices; singleDevice / noDevice =
+ //                         keep (leave the existing number) | device (use {FROM} alone) | skip; fixed = write the number on
+ //                         the fixed wire-number layer so AutoCAD Electrical's retag leaves it alone; overwriteFixed = a
+ //                         network that already has a fixed number is renumbered too.
+ //   wireNumberBlocks      block names (wildcards) that are wire-number text; wireNumberAttribute = their attribute.
+ //   insertBlockName       block inserted when a network has no wire number yet (its .dwg is looked up in the project's
+ //                         schematic library paths when the drawing has no definition); insertMissing = false reports instead.
+ //   connectionAttributePattern  the symbol attributes whose position is a wire connection point (X1TERM01, X2TERM01 ...);
+ //                         pinAttributePrefix + the two digits gives the pin attribute (TERM01). tagAttributes = where the
+ //                         device tag is read, in order. terminalStripAttribute marks terminal symbols. signalCodeAttribute
+ //                         joins networks across sheets through source/destination arrows.
+ //   joinTolerance         distance (drawing units) within which wire ends touch; gapTolerance joins collinear segments
+ //                         across a wire gap; markTolerance is how far a wire-number block may sit from its wire.
+ // protectedOptions       +[n] lines a profile may never change (library and menu paths belong to LSE, not the customer).
+ // protectedProperties    ?[n] lines a profile may never change.
+ // labels                 friendly names for +[n] ("+1") and ?[n] ("?5") lines the setting map does not cover.
+ "wdmBlockName": "WD_M",
+ "settings": [
+  { "key": "wireMode",        "label": "Wire number mode",            "group": "Wire numbers",    "property": 6,  "wdm": "WIREMODE",   "kind": "choice", "choices": "S=Sequential;R=Reference-based (line reference, X zones or X-Y grid per Format Referencing)", "confidence": "inferred" },
+  { "key": "wireFormat",      "label": "Wire number format",          "group": "Wire numbers",    "property": 9,  "wdm": "WIREFMT",    "kind": "text",   "confidence": "inferred", "note": "%N number, %S sheet, %D drawing, %P project, %I installation, %L location, %X suffix" },
+  { "key": "wireStart",       "label": "Wire number start",           "group": "Wire numbers",    "property": 7,  "wdm": "WIRE_START", "kind": "number", "confidence": "inferred" },
+  { "key": "wireIncrement",   "label": "Wire number increment",       "group": "Wire numbers",    "property": 10, "wdm": "WIREINC",    "kind": "number", "confidence": "inferred" },
+  { "key": "wireSuffixes",    "label": "Wire number suffix list",     "group": "Wire numbers",    "property": 8,  "wdm": "WIRE_RSUF",  "kind": "text",   "confidence": "inferred", "note": "Reference-based mode: suffixes for several wires on one reference, leading comma means none first" },
+  { "key": "referenceStyle",  "label": "Format referencing (reference numbers / X zones / X-Y grid)", "group": "Wire numbers", "kind": "text", "confidence": "unknown", "note": "Not located yet. Set it in Project Properties > Drawing Format > Format Referencing, then use LSEENVSNAPSHOT to find the ?[n] line and WD_M attribute and map it here." },
+  { "key": "tagMode",         "label": "Component tag mode",          "group": "Component tags",  "property": 2,  "wdm": "TAGMODE",    "kind": "choice", "choices": "S=Sequential;R=Reference-based", "confidence": "inferred" },
+  { "key": "tagFormat",       "label": "Component tag format",        "group": "Component tags",  "property": 5,  "wdm": "TAGFMT",     "kind": "text",   "confidence": "inferred", "note": "%F family, %N number, %S sheet, %D drawing, %P project, %I installation, %L location" },
+  { "key": "tagStart",        "label": "Component tag start",         "group": "Component tags",  "property": 3,  "wdm": "TAG_START",  "kind": "number", "confidence": "inferred" },
+  { "key": "tagSuffixes",     "label": "Component tag suffix list",   "group": "Component tags",  "property": 4,  "wdm": "TAG_RSUF",   "kind": "text",   "confidence": "inferred" },
+  { "key": "xrefFormat",      "label": "Cross-reference format",      "group": "Cross-references","property": 14, "wdm": "XREFFMT",    "kind": "text",   "confidence": "inferred", "note": "%N reference, %S sheet, %D drawing" },
+  { "key": "rungOrientation", "label": "Ladder rung orientation",     "group": "Ladder",          "property": 0,  "wdm": "RUNGHORV",   "kind": "choice", "choices": "H=Horizontal rungs;V=Vertical rungs", "confidence": "inferred" },
+  { "key": "rungIncrement",   "label": "Ladder reference increment",  "group": "Ladder",          "property": 1,  "wdm": "RUNGINC",    "kind": "number", "confidence": "unknown", "note": "?[1]=1 in the template; mapping is a guess" },
+  { "key": "wireLayers",      "label": "Wire layers (WIRELAYS)",      "group": "Layers",          "property": 26, "wdm": "WIRELAYS",      "kind": "text", "confidence": "inferred", "protected": true },
+  { "key": "wireNumberLayer", "label": "Wire number layer",           "group": "Layers",          "property": 27, "wdm": "WIRENO_LAY",    "kind": "text", "confidence": "inferred", "protected": true },
+  { "key": "wireCopyLayer",   "label": "Wire number copy layer",      "group": "Layers",          "property": 28, "wdm": "WIRECOPY_LAY",  "kind": "text", "confidence": "inferred", "protected": true },
+  { "key": "wireFixedLayer",  "label": "Fixed wire number layer",     "group": "Layers",          "property": 29, "wdm": "WIREFIXED_LAY", "kind": "text", "confidence": "inferred", "protected": true },
+  { "key": "wireRefLayer",    "label": "Wire reference layer",        "group": "Layers",          "property": 54, "wdm": "WIREREF_LAY",   "kind": "text", "confidence": "inferred", "protected": true },
+  { "key": "fanInOutLayers",  "label": "Fan-in/out wire layers",      "group": "Layers",          "property": 56, "wdm": "FAN_INOUT_LAYS","kind": "text", "confidence": "inferred", "protected": true }
+ ],
+ "wireSchemes": [
+  { "name": "LSE standard (template)", "description": "Wire numbering exactly as the LSE custom project template has it (sequential, %N). Values are read from the template project at apply time.",
+    "fromTemplate": true, "templateKeys": [ "wireMode", "wireFormat", "wireStart", "wireIncrement", "wireSuffixes" ] },
+  { "name": "Sequential with sheet prefix", "description": "Sequential numbers prefixed with the sheet number: 1-100, 1-101, 2-100 ...",
+    "values": { "wireMode": "S", "wireFormat": "%S-%N" } },
+  { "name": "Line reference (grid)", "description": "Reference-based numbers taken from the drawing's format referencing (ladder reference numbers, X zones or X-Y grid). Format Referencing itself must be set by hand until the referenceStyle row of the setting map is located.",
+    "values": { "wireMode": "R", "wireFormat": "%N", "wireSuffixes": ",A,B,C,D,E,F,G,H,J,K,L,M,N", "referenceStyle": "X-Y grid" } },
+  { "name": "From/To device", "description": "Each wire network is numbered FROM-TO from the tags of the devices it connects (PB1-CR1). Numbers are written as fixed wire numbers so AutoCAD Electrical's retag leaves them alone. Networks with fewer than two tagged devices keep their current number and are listed in the report.",
+    "values": { "wireMode": "S", "wireFormat": "%N" },
+    "fromTo": { "format": "{FROM}-{TO}", "duplicateSuffix": "-{N}", "includeTerminalPin": false, "pinFormat": "{TAG}:{PIN}", "multiDevice": "firstLast", "allSeparator": "/", "devicePriority": [ ], "terminalsLast": true, "uppercase": true, "maxLength": 0, "fixed": true, "singleDevice": "keep", "noDevice": "keep", "overwriteFixed": true } },
+  { "name": "From/To with pins", "description": "As From/To device, with the pin numbers: PB1:3-CR1:A1.",
+    "values": { "wireMode": "S", "wireFormat": "%N" },
+    "fromTo": { "format": "{FROM}-{TO}", "duplicateSuffix": "-{N}", "includeTerminalPin": true, "pinFormat": "{TAG}:{PIN}", "multiDevice": "firstLast", "allSeparator": "/", "devicePriority": [ ], "terminalsLast": true, "uppercase": true, "maxLength": 0, "fixed": true, "singleDevice": "keep", "noDevice": "keep", "overwriteFixed": true } }
+ ],
+ "fromTo": {
+  "wireNumberBlocks": [ "WD_WN*" ],
+  "wireNumberAttribute": "WIRENO",
+  "insertBlockName": "WD_WN",
+  "insertMissing": true,
+  "insertOffset": 0.09375,
+  "connectionAttributePattern": "^X[1248]TERM(\\d{2})$",
+  "pinAttributePrefix": "TERM",
+  "tagAttributes": [ "TAG1", "TAG2", "TAG", "TAGSTRIP" ],
+  "terminalStripAttribute": "TAGSTRIP",
+  "signalCodeAttribute": "SIGCODE",
+  "ignoreBlocks": [ "WD_M", "WD_WN*", "WD_*" ],
+  "joinTolerance": 0.001,
+  "gapTolerance": 0.25,
+  "markTolerance": 0.35
+ },
+ "protectedOptions": [ 1, 2, 3, 4 ],
+ "protectedProperties": [ ],
+ "labels": {
+  "+1": "Schematic symbol library paths",
+  "+2": "Schematic icon menu (.dat)",
+  "+3": "Panel footprint library paths",
+  "+4": "Panel icon menu (.dat)",
+  "?25": "Tag / suffix separator (inferred)",
+  "?32": "Component tag layer",
+  "?33": "Cross-reference layer",
+  "?34": "Description layer",
+  "?35": "Terminal layer",
+  "?36": "Child cross-reference layer",
+  "?37": "Child description layer",
+  "?38": "Location layer",
+  "?39": "Position layer",
+  "?40": "Misc layer",
+  "?44": "Link layer",
+  "?45": "Symbol layer",
+  "?48": "Fixed component tag layer",
+  "?58": "Location box layer",
+  "?68": "Contact types",
+  "?72": "Wire type columns",
+  "?73": "Wire type column alignment"
+ }
+}

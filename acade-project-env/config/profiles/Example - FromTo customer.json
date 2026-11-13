@@ -1,0 +1,32 @@
+{
+  "name": "Example - FromTo customer",
+  "customer": "EXAMPLE FROM-TO",
+  "description": "Sample profile for a customer who specifies wire numbers as FROM device - TO device (PB1-CR1). Copy it in LSEENVPROFILES, rename it after the customer and adjust the format.",
+  "scheme": "From/To device",
+  "values": {
+    "tagMode": "S",
+    "tagFormat": "%F%N"
+  },
+  "properties": {},
+  "options": {},
+  "drawing": {},
+  "fromTo": {
+    "format": "{FROM}-{TO}",
+    "duplicateSuffix": "-{N}",
+    "includeTerminalPin": false,
+    "pinFormat": "{TAG}:{PIN}",
+    "multiDevice": "firstLast",
+    "allSeparator": "/",
+    "devicePriority": [],
+    "terminalsLast": true,
+    "uppercase": true,
+    "maxLength": 0,
+    "fixed": true,
+    "singleDevice": "keep",
+    "noDevice": "keep",
+    "overwriteFixed": true
+  },
+  "wdtSource": "",
+  "wdlSource": "",
+  "notes": "Numbers are written as fixed wire numbers on the WIREFIXED layer so AutoCAD Electrical's own retag leaves them alone. Networks with fewer than two tagged devices keep their current number and are listed in the report."
+}

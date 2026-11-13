@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- LSE_Env: AutoCAD Electrical 2026 plugin (.NET 8). Build on a workstation that has AutoCAD Electrical 2026 installed,
+       or pass -p:AcadDir="<path to AutoCAD 2026>". Without an install the AutoCAD.NET 25.1 reference package is used
+       (compile-time only; nothing from it is copied to the output). -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>LSE.AutoCADElectrical.ProjectEnvironment</RootNamespace>
+    <AssemblyName>LSE_Env</AssemblyName>
+    <Version>1.6.0</Version>
+    <AssemblyVersion>1.6.0.0</AssemblyVersion>
+    <FileVersion>1.6.0.0</FileVersion>
+    <InformationalVersion>2026-11-12-r6</InformationalVersion>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AcadDir Condition="'$(AcadDir)' == ''">C:\Program Files\Autodesk\AutoCAD 2026</AcadDir>
+    <HasAcad>false</HasAcad>
+    <HasAcad Condition="Exists('$(AcadDir)\acdbmgd.dll')">true</HasAcad>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(HasAcad)' == 'true'">
+    <Reference Include="accoremgd"><HintPath>$(AcadDir)\accoremgd.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="acdbmgd"><HintPath>$(AcadDir)\acdbmgd.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="acmgd"><HintPath>$(AcadDir)\acmgd.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(HasAcad)' != 'true'">
+    <PackageReference Include="AutoCAD.NET" Version="25.1.0" ExcludeAssets="runtime" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="tests\**" />
+    <!-- The rules JSON lands next to the DLL; the sample profiles land in profiles\ and are copied into the engineer's
+         profiles folder on first use when that folder is empty. -->
+    <None Include="config\LseEnvRules.json" Link="LseEnvRules.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="config\profiles\*.json" Link="profiles\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

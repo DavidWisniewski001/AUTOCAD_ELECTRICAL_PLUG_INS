@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Console smoke test for the catalog-only flow (no symbol, no footprint). Build the plugin in Release first, then:
+         dotnet run -c Release with the project tests\LSE_Librarian.CatalogSmokeTest and pass the workbook path and the default_cat.mdb path as the two arguments
+       It copies both files to a temp folder and only ever writes to the copies. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="LSE.AutoCADElectrical.Librarian"><HintPath>..\..\bin\Release\LSE.AutoCADElectrical.Librarian.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

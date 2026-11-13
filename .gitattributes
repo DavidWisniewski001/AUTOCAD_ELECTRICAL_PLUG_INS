@@ -1,0 +1,9 @@
+* text=auto
+*.dwg binary
+*.dwt binary
+*.docx binary
+*.arg binary
+*.png binary
+*.mdb binary
+*.zip binary
+*.dll binary

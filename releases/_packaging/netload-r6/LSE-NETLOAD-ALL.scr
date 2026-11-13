@@ -1,0 +1,9 @@
+; LSE-NETLOAD-ALL.scr  -  alternative to the .lsp loader: run it with the SCRIPT command.
+; Paths assume the zip was extracted to C:\ (folder C:\LSE-Plugins-NETLOAD); edit them if not. No spaces in the paths.
+FILEDIA 0
+NETLOAD C:\LSE-Plugins-NETLOAD\LSE.AutoCADElectrical.CatalogTools\LSE.AutoCADElectrical.CatalogTools.dll
+NETLOAD C:\LSE-Plugins-NETLOAD\LSE.AutoCADElectrical.ProjectTools\LSE.AutoCADElectrical.ProjectTools.dll
+NETLOAD C:\LSE-Plugins-NETLOAD\LSE_Doctor\LSE_Doctor.dll
+NETLOAD C:\LSE-Plugins-NETLOAD\LSE.AutoCADElectrical.Librarian\LSE.AutoCADElectrical.Librarian.dll
+NETLOAD C:\LSE-Plugins-NETLOAD\LSE_Env\LSE_Env.dll
+FILEDIA 1

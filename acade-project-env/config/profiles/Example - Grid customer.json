@@ -1,0 +1,18 @@
+{
+  "name": "Example - Grid customer",
+  "customer": "EXAMPLE GRID",
+  "description": "Sample profile for a customer who mandates reference-based (X-Y grid) wire numbers. Copy it in LSEENVPROFILES, rename it after the customer and adjust the values.",
+  "scheme": "Line reference (grid)",
+  "values": {
+    "wireSuffixes": ",A,B,C,D,E,F,G,H,J,K,L,M,N",
+    "tagMode": "S",
+    "tagFormat": "%F%N"
+  },
+  "properties": {},
+  "options": {},
+  "drawing": {},
+  "fromTo": null,
+  "wdtSource": "",
+  "wdlSource": "",
+  "notes": "Format Referencing (X-Y grid) is not located in the setting map yet; set it by hand in Project Properties > Drawing Format and in each drawing's Drawing Properties until LSEENVSNAPSHOT has found the line."
+}

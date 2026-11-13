@@ -1,0 +1,62 @@
+
+Project Locations
+
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Draw out IC Breakers\1200A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Draw out IC Breakers\1600A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Draw out IC Breakers\2000A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Draw out IC Breakers\2500A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Draw out IC Breakers\3000A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Draw out IC Breakers\3200A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Draw out IC Breakers\4000A"
+
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Fixed IC Breakers\0600A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Fixed IC Breakers\1000A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Fixed IC Breakers\1200A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Fixed IC Breakers\1600A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Fixed IC Breakers\2000A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Fixed IC Breakers\2500A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Fixed IC Breakers\3000A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Fixed IC Breakers\3200A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Fixed IC Breakers\4000A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Fixed IC Breakers\5000A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Fixed IC Breakers\6000A"
+
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Bolted Pressure Switch"
+
+
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Molded Case Breakers\600A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Molded Case Breakers\800A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Molded Case Breakers\1200A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Molded Case Breakers\1600A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Molded Case Breakers\2000A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Molded Case Breakers\2500A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\Eaton\Molded Case Breakers\3000A"
+
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\ABB\Fixed IC Breakers\1600A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\ABB\Fixed IC Breakers\2000A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\ABB\Fixed IC Breakers\3200A"
+"C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order\UL 891 Switchboards\ABB\Fixed IC Breakers\4000A"
+
+Symbol Location
+"Engineers dump symbols all over no organization"
+"C:\_Lake_Shore_E_Vault\CAD Standards\AutoCAD\ECAD Standards\Symbol Library\NFPA"
+"C:\_Lake_Shore_E_Vault\CAD Standards\AutoCAD\ECAD Standards\Symbol Library\LSE E-Cad Symbols"
+
+Footprints
+"C:\_Lake_Shore_E_Vault\CAD Standards\AutoCAD\ECAD Standards\Footprint Library\LSE E-Cad Footprints"
+"C:\_Lake_Shore_E_Vault\CAD Standards\AutoCAD\ECAD Standards\Footprint Library\panel"
+
+Custom Project Template
+" An empty project with the project settings partly configured"
+"C:\_Lake_Shore_E_Vault\CAD Standards\AutoCAD\ECAD Standards\Project Templates\CUSTOM TEMPLATES\CUSTOM PROJECT TEMPLATE 2.0\E-CAD CUSTOM PROJECT TEMPLATE 2.wdp"
+
+
+Catalog DB
+"C:\_Lake_Shore_E_Vault\CAD Standards\AutoCAD\ECAD Standards\E-CAD .mbd ACCESS FILES\AeData\en-US\Catalogs\default_cat.mdb"
+
+Footprint Look Up
+"C:\_Lake_Shore_E_Vault\CAD Standards\AutoCAD\ECAD Standards\E-CAD .mbd ACCESS FILES\AeData\en-US\Catalogs\footprint_lookup.mdb"
+
+Icon Menus
+"C:\_Lake_Shore_E_Vault\CAD Standards\AutoCAD\ECAD Standards\dat MENU"
+

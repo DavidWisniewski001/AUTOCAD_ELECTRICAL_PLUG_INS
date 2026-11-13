@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- LSE Catalog Tools: AutoCAD Electrical 2026 plugin (.NET 8). Build on a workstation that has AutoCAD Electrical 2026
+       installed, or pass -p:AcadDir="<path to AutoCAD 2026>". Without an install the AutoCAD.NET 25.1 reference package is
+       used (compile-time only; nothing from it is copied to the output). Same arrangement as ../acade-project-creator. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>LSE.AutoCADElectrical.CatalogTools</RootNamespace>
+    <AssemblyName>LSE.AutoCADElectrical.CatalogTools</AssemblyName>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AcadDir Condition="'$(AcadDir)' == ''">C:\Program Files\Autodesk\AutoCAD 2026</AcadDir>
+    <HasAcad>false</HasAcad>
+    <HasAcad Condition="Exists('$(AcadDir)\acdbmgd.dll')">true</HasAcad>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(HasAcad)' == 'true'">
+    <Reference Include="accoremgd"><HintPath>$(AcadDir)\accoremgd.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="acdbmgd"><HintPath>$(AcadDir)\acdbmgd.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="acmgd"><HintPath>$(AcadDir)\acmgd.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(HasAcad)' != 'true'">
+    <PackageReference Include="AutoCAD.NET" Version="25.1.0" ExcludeAssets="runtime" />
+  </ItemGroup>
+</Project>

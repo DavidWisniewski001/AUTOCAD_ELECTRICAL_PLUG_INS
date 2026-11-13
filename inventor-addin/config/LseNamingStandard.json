@@ -1,0 +1,2028 @@
+{
+ "source": "LSE ELECTRICAL PARTS CATALOG MANAGER.xlsx (generated 2026-11-08 by tools/extract_naming_standard.py)",
+ "format": {
+  "categoryChars": 2,
+  "manufacturerChars": 3,
+  "typeChars": 2,
+  "sequenceChars": 7
+ },
+ "tabs": [
+  {
+   "name": "LSE WIRE",
+   "categoryCodes": [
+    "75"
+   ],
+   "types": {
+    "BW": "building wire (THHN/THWN/MTW, bare Cu)",
+    "SW": "switchboard wire (SIS/XLPE)",
+    "TC": "tray / multi-conductor cable",
+    "IC": "instrumentation & control cable",
+    "PC": "power cord",
+    "GB": "ground braid",
+    "MV": "medium-voltage wire"
+   },
+   "manufacturers": {
+    "SOU": "Southwire",
+    "BEL": "Belden",
+    "GCC": "General Cable / Carol",
+    "ENC": "Encore Wire",
+    "CHC": "Eaton",
+    "ANX": "Anixter",
+    "CRE": "Crescent",
+    "OMN": "OmniCable (distributors - Under Engineering Review)",
+    "UNK": "Unknown (Under Engineering Review)"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE FUSE HOLDERS",
+   "categoryCodes": [
+    "25",
+    "45",
+    "76"
+   ],
+   "types": {
+    "FH": "fuse holder / fuse block",
+    "FU": "fuse-holder part or accessory (base, condenser, cover)"
+   },
+   "manufacturers": {
+    "CHC": "Eaton / Cutler-Hammer",
+    "BUS": "Bussmann (Eaton)",
+    "MER": "Mersen / Ferraz Shawmut",
+    "MAR": "Marathon",
+    "PHC": "Phoenix Contact",
+    "WAG": "WAGO",
+    "LTF": "Littelfuse",
+    "ABB": "ABB",
+    "KEY": "Keystone Electronics"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE FUSES",
+   "categoryCodes": [
+    "16",
+    "21",
+    "25",
+    "45",
+    "75",
+    "76"
+   ],
+   "types": {
+    "CF": "low-voltage fuse (1000 V and below)",
+    "MV": "medium-voltage fuse (above 1000 V)"
+   },
+   "manufacturers": {
+    "CHC": "Eaton / Cutler-Hammer",
+    "BUS": "Bussmann (Eaton)",
+    "MER": "Mersen / Ferraz Shawmut",
+    "LTF": "Littelfuse",
+    "ABB": "ABB",
+    "XXX": "Unknown / generic (e.g. McMaster-Carr)"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE TRANSFORMERS",
+   "categoryCodes": [
+    "08",
+    "21",
+    "41",
+    "42",
+    "43",
+    "75",
+    "76"
+   ],
+   "types": {
+    "XF": "power / control transformer",
+    "PT": "potential / voltage transformer",
+    "CT": "current transformer"
+   },
+   "manufacturers": {
+    "SQD": "Schneider Electric / Square D",
+    "HAM": "Hammond Power Solutions",
+    "GEL": "GE / GE Grid / ITI",
+    "FCC": "Flex-Core",
+    "AMN": "Amran Instrument Transformers",
+    "ABB": "ABB",
+    "PCS": "PC&S (Panel Components & Systems)",
+    "CCF": "Coilcraft"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE POWER CIRCUIT BREAKERS",
+   "categoryCodes": [
+    "11",
+    "12",
+    "19",
+    "75"
+   ],
+   "types": {
+    "AB": "air / power circuit breaker",
+    "MC": "molded case circuit breaker",
+    "TU": "trip unit / rating plug",
+    "AX": "breaker accessory / auxiliary",
+    "MV": "medium-voltage breaker / switch"
+   },
+   "manufacturers": {
+    "CHC": "Eaton / Cutler-Hammer",
+    "ABB": "ABB",
+    "SQD": "Square D (Schneider Electric)",
+    "SCH": "Schneider Electric",
+    "SIE": "Siemens",
+    "GEL": "GE",
+    "LSE": "LSE (made in house)",
+    "UNK": "Unknown / distributor (Under Engineering Review)"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE PUSHBUTTONS, SELECTOR & CON",
+   "categoryCodes": [
+    "02",
+    "04",
+    "11",
+    "12",
+    "51",
+    "76"
+   ],
+   "types": {
+    "PB": "pushbutton (incl. E-stop, push-pull)",
+    "SS": "selector switch",
+    "CS": "switchgear control switch",
+    "CM": "control switch module",
+    "CB": "contact block",
+    "AC": "operator accessory",
+    "BZ": "buzzer",
+    "EN": "pushbutton enclosure"
+   },
+   "manufacturers": {
+    "IDE": "IDEC",
+    "CHC": "Eaton / Cutler-Hammer",
+    "SQD": "Schneider Electric / Square D",
+    "ELS": "Electroswitch",
+    "SEL": "Schweitzer Engineering Labs (SEL)",
+    "ATD": "ATD (Under Engineering Review)",
+    "MEN": "Menics (Under Engineering Review)",
+    "MMC": "McMaster-Carr (distributor - Under Engineering Review)"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE INDICATORS",
+   "categoryCodes": [
+    "01",
+    "04",
+    "75",
+    "76"
+   ],
+   "types": {
+    "PL": "pilot / indicating light (incl. push-to-test, LED module, lens)",
+    "VI": "voltage presence indicator / voltage test station"
+   },
+   "manufacturers": {
+    "IDE": "IDEC",
+    "CHC": "Eaton / Cutler-Hammer",
+    "ALB": "Allen-Bradley (Rockwell Automation)",
+    "SQD": "Schneider Electric / Square D",
+    "GEL": "GE",
+    "GRC": "Grace Technologies"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE MINI-CIRCUIT BREAKERS",
+   "categoryCodes": [
+    "11",
+    "18",
+    "19",
+    "45",
+    "76"
+   ],
+   "types": {
+    "CB": "circuit breaker (DIN-rail miniature, plug-on / bolt-on branch, main breaker)",
+    "MA": "MCB accessory (bus bars, feeder terminals)"
+   },
+   "manufacturers": {
+    "SQD": "Schneider Electric / Square D",
+    "WEI": "Weidmuller",
+    "PHC": "Phoenix Contact"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE METERING",
+   "categoryCodes": [
+    "75",
+    "76"
+   ],
+   "types": {
+    "MT": "revenue / power quality meter",
+    "MM": "metering I/O module (Axion / RTAC)",
+    "TD": "metering transducer"
+   },
+   "manufacturers": {
+    "SEL": "Schweitzer Engineering Laboratories (SEL)",
+    "CHC": "Eaton / Cutler-Hammer",
+    "SQD": "Schneider Electric / Square D",
+    "GEL": "GE / GE Grid / ITI",
+    "PCS": "PC&S (Panel Components & Systems)"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE RELAYS",
+   "categoryCodes": [
+    "31",
+    "32",
+    "75",
+    "76"
+   ],
+   "types": {
+    "TP": "transformer protection",
+    "LP": "line protection",
+    "BP": "bus protection",
+    "FP": "feeder protection & bay control",
+    "CP": "capacitor bank protection",
+    "IR": "interface relay module",
+    "TR": "timer relay module",
+    "RA": "relay accessory (sockets, retaining brackets, plug-in bridges, suppression modules)"
+   },
+   "manufacturers": {
+    "SEL": "Schweitzer Engineering Labs (SEL)",
+    "WAG": "WAGO",
+    "PHC": "Phoenix Contact"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE AUTOMATION, CONTROLLERS & C",
+   "categoryCodes": [
+    "35",
+    "75",
+    "76"
+   ],
+   "types": {
+    "AC": "automation controller",
+    "CP": "computing platform / RTU",
+    "IO": "I/O module / node",
+    "CK": "clock"
+   },
+   "manufacturers": {
+    "SEL": "Schweitzer Engineering Laboratories",
+    "SCH": "Schneider Electric",
+    "ALB": "Allen-Bradley (Rockwell Automation)"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE COMMUNICATIONS & NETWORKING",
+   "categoryCodes": [
+    "31",
+    "51",
+    "75",
+    "76"
+   ],
+   "types": {
+    "FT": "fiber-optic serial transceiver",
+    "SF": "SFP transceiver module",
+    "NS": "network switch / security gateway",
+    "CC": "communication cable"
+   },
+   "manufacturers": {
+    "SEL": "Schweitzer Engineering Labs (SEL)",
+    "MOX": "Moxa",
+    "HIR": "Hirschmann (Belden)",
+    "PHC": "Phoenix Contact"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE DISCONNECT & SAFETY SWITCH",
+   "categoryCodes": [
+    "12",
+    "21",
+    "75",
+    "76"
+   ],
+   "types": {
+    "BP": "bolted pressure switch",
+    "DS": "medium-voltage disconnect switch",
+    "GD": "general-duty safety switch",
+    "HD": "heavy-duty safety switch"
+   },
+   "manufacturers": {
+    "BSS": "Boltswitch",
+    "ABB": "ABB (incl. former GE)",
+    "SQD": "Square D (Schneider Electric)"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE LOAD CENTERS & ACCESSORIES",
+   "categoryCodes": [
+    "11",
+    "19",
+    "75",
+    "76"
+   ],
+   "types": {
+    "LC": "load center (box + interior)",
+    "CV": "load center cover",
+    "LA": "load center accessory",
+    "PN": "panelboard assembly"
+   },
+   "manufacturers": {
+    "SQD": "Square D (Schneider Electric)"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE CABLE TRAY, RACEWAY & CABLE",
+   "categoryCodes": [
+    "75",
+    "76"
+   ],
+   "types": {
+    "TT": "cable tray tee / tee transition fitting",
+    "TS": "cable transit frame / seal kit"
+   },
+   "manufacturers": {
+    "CAB": "Cablofil (Legrand)",
+    "CHA": "Chalfant Manufacturing",
+    "ROX": "Roxtec",
+    "NSI": "NSI Industries"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE CONDUIT",
+   "categoryCodes": [
+    "48",
+    "51",
+    "63",
+    "75"
+   ],
+   "types": {
+    "CD": "rigid / EMT / PVC conduit",
+    "FL": "flexible & liquid-tight conduit",
+    "CF": "fittings (connectors, couplings, locknuts, bushings, nipples, hubs, elbows)",
+    "CB": "conduit bodies, covers & gaskets",
+    "CS": "clamps, straps, hangers & supports"
+   },
+   "manufacturers": {
+    "CHC": "Eaton / Crouse-Hinds / B-Line",
+    "HUB": "Hubbell / RACO / Killark",
+    "TPZ": "Topaz",
+    "HLX": "Halex",
+    "ARL": "Arlington",
+    "MID": "Midwest",
+    "ATK": "Allied Tube & Conduit / Atkore",
+    "NUC": "Nucor",
+    "WHE": "Wheatland Tube",
+    "SOU": "Southwire",
+    "ABB": "ABB / Superstrut / Steel City",
+    "ERI": "Erico / Caddy",
+    "CRE": "Crescent (distributor)",
+    "GRB": "Graybar (distributor)",
+    "UNK": "Unknown / under review"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE RECEPTACLES",
+   "categoryCodes": [
+    "51",
+    "75",
+    "76"
+   ],
+   "types": {
+    "GF": "GFCI receptacle",
+    "RC": "straight-blade receptacle",
+    "LK": "locking / pin & sleeve / Cam-Lok receptacle",
+    "CV": "cover / wallplate",
+    "BX": "outlet box",
+    "OT": "non-receptacle item kept for review",
+    "SW": "wall switch (light / 3-way / 4-way / special purpose)"
+   },
+   "manufacturers": {
+    "LEV": "Leviton",
+    "HUB": "Hubbell (incl. RACO)",
+    "CHC": "Eaton / Crouse-Hinds",
+    "PHC": "Phoenix Contact",
+    "MEL": "Meltric",
+    "APP": "Appleton",
+    "WEI": "Weidmuller",
+    "COR": "Corning",
+    "SOU": "Southwire",
+    "TOR": "Tork",
+    "ASI": "ASI",
+    "UNK": "Unknown or distributor (Under Engineering Review)"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE AUTOMATIC TRANSFER SWITCHES",
+   "categoryCodes": [
+    "53",
+    "58",
+    "75",
+    "76"
+   ],
+   "types": {
+    "AT": "automatic transfer switch",
+    "AC": "ATS controller / annunciator / control board",
+    "FB": "LSE-fabricated ATS part (back plate, lever arm, bus bar, control panel)",
+    "LB": "ATS label / overlay / nameplate"
+   },
+   "manufacturers": {
+    "ASC": "ASCO (Schneider Electric)",
+    "WIL": "Wilmore Electronics",
+    "ABB": "ABB",
+    "LSE": "LSE (made in house)",
+    "ETC": "Etched Metal Company",
+    "NAM": "Nameplate & Panel Technology",
+    "TAP": "Tapecon",
+    "UNK": "Unknown (Under Engineering Review)"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE KEY INTERLOCKS",
+   "categoryCodes": [
+    "11",
+    "12",
+    "17",
+    "21"
+   ],
+   "types": {
+    "KI": "Kirk key interlock (bolt / cylinder / access)",
+    "TB": "key transfer block",
+    "KP": "Kirk key provision / mounting kit on breakers",
+    "KA": "interlock accessory (bracket, cover)",
+    "KE": "Kirk-keyed equipment (breaker, door supplied with interlock)"
+   },
+   "manufacturers": {
+    "KRK": "Kirk Key Interlock Co. (Sentric)",
+    "CHC": "Eaton / Cutler-Hammer",
+    "UNK": "Unknown (Under Engineering Review)"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE SURGE PROTECTION",
+   "categoryCodes": [
+    "12",
+    "56",
+    "75"
+   ],
+   "types": {
+    "SP": "low-voltage SPD (panel / enclosure)",
+    "SA": "medium-voltage surge arrester",
+    "DR": "DIN-rail surge arrester",
+    "AC": "accessory (display cable, bracket, varistor)"
+   },
+   "manufacturers": {
+    "CHC": "Eaton / Cutler-Hammer",
+    "SQD": "Square D",
+    "SCH": "Schneider Electric",
+    "WEI": "Weidmuller",
+    "PHC": "Phoenix Contact",
+    "MER": "Mersen",
+    "ERI": "Erico (nVent)",
+    "GEL": "GE",
+    "HUB": "Hubbell",
+    "DTK": "Ditek",
+    "LTF": "Littelfuse",
+    "SIE": "Siemens",
+    "SOL": "Sola",
+    "THO": "Thor",
+    "EPC": "EPCOS",
+    "ALU": "Aluma-Form"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE POWER SUPPLIES",
+   "categoryCodes": [
+    "13",
+    "52",
+    "59",
+    "75",
+    "76"
+   ],
+   "types": {
+    "PS": "AC/DC power supply",
+    "DC": "DC/DC converter / inverter",
+    "UP": "UPS",
+    "BC": "battery charger / rectifier",
+    "BA": "battery",
+    "BR": "battery rack / accessory",
+    "OT": "other item kept for review"
+   },
+   "manufacturers": {
+    "PHC": "Phoenix Contact",
+    "WAG": "WAGO",
+    "WEI": "Weidmuller",
+    "WIE": "Wieland",
+    "APC": "APC (Schneider Electric)",
+    "FAL": "Falcon Electric",
+    "SQD": "Square D / Schneider Electric",
+    "BSI": "Battery Systems Inc."
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE METER SOCKETS & ENCLOSURES",
+   "categoryCodes": [
+    "01",
+    "58"
+   ],
+   "types": {
+    "MS": "meter socket",
+    "MA": "socket accessory (rings, covers)",
+    "OT": "non-socket item kept for review"
+   },
+   "manufacturers": {
+    "CHC": "Eaton / B-Line",
+    "MIL": "Milbank",
+    "CAL": "Cal Fasteners",
+    "SQD": "Square D",
+    "UNK": "Unknown / Under Engineering Review"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE CONTACTORS",
+   "categoryCodes": [
+    "06",
+    "15",
+    "75"
+   ],
+   "types": {
+    "MC": "motor/IEC contactor or starter",
+    "DC": "DC, power or definite-purpose contactor",
+    "LC": "lighting contactor",
+    "CA": "contactor accessory"
+   },
+   "manufacturers": {
+    "SQD": "Square D",
+    "SCH": "Schneider Electric",
+    "CHC": "Eaton / Cutler-Hammer",
+    "EEC": "EEC (Elektro-Elektronik Control)",
+    "ASC": "ASCO",
+    "PCS": "Panel Components & Systems",
+    "ALB": "Allen-Bradley",
+    "UNK": "Unknown / under review"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE TERMINAL BLOCKS",
+   "categoryCodes": [
+    "15",
+    "50",
+    "76"
+   ],
+   "types": {
+    "TB": "feed-through/ground block",
+    "PT": "power/shorting/fused block",
+    "JB": "jumper/bridge",
+    "EP": "end plate/stop/cover",
+    "PL": "plug",
+    "DR": "DIN rail",
+    "MK": "marker strip"
+   },
+   "manufacturers": {
+    "PHC": "Phoenix Contact",
+    "WAG": "WAGO",
+    "WEI": "Weidmüller",
+    "MAR": "Marathon Special Products",
+    "ALB": "Allen-Bradley",
+    "GEL": "GE / ED&C",
+    "ENT": "Entrelec (ABB)",
+    "SCH": "Schneider Electric / Modicon"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE FIRE ALARM & LIFE SAFETY",
+   "categoryCodes": [
+    "05",
+    "59",
+    "75"
+   ],
+   "types": {
+    "SD": "smoke/heat detector",
+    "DB": "detector base / pull station",
+    "EL": "exit & emergency lighting",
+    "FC": "fire alarm cable",
+    "OT": "other (review)",
+    "FP": "fire alarm control panel / annunciator",
+    "SE": "safety equipment (fire extinguisher, eyewash station)"
+   },
+   "manufacturers": {
+    "SPX": "Simplex (Johnson Controls)",
+    "STX": "Stat-X",
+    "BEL": "Belden",
+    "ISO": "Isolite",
+    "SEN": "Sensaphone",
+    "CHC": "Eaton / Cutler-Hammer",
+    "UNK": "Unknown / under review"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE TRANSDUCERS & SIGNAL COND",
+   "categoryCodes": [
+    "31"
+   ],
+   "types": {
+    "TD": "transducer (AC/DC current, voltage, power, frequency)",
+    "SC": "signal conditioner / isolator / converter",
+    "TA": "transducer accessory"
+   },
+   "manufacturers": {
+    "PCS": "Panel Components & Systems (PC&S)",
+    "PHC": "Phoenix Contact",
+    "WEI": "Weidmuller",
+    "UNK": "Unknown / under review"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE TOOLS & FERRULES",
+   "categoryCodes": [
+    "47",
+    "50",
+    "76"
+   ],
+   "types": {
+    "CT": "crimping tool",
+    "ST": "stripping tool",
+    "TQ": "torque tool",
+    "FR": "wire ferrule",
+    "OT": "other (review)"
+   },
+   "manufacturers": {
+    "PHC": "Phoenix Contact",
+    "WAG": "WAGO",
+    "WEI": "Weidmuller",
+    "ALT": "Altech",
+    "SEL": "Schweitzer Engineering Laboratories",
+    "UNK": "Unknown / blank (Under Engineering Review)"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE TEST SWITCHES & BLOCKS",
+   "categoryCodes": [],
+   "types": {
+    "TA": "test switch assembly",
+    "TB": "test block / plug / accessory",
+    "TS": "test switch"
+   },
+   "manufacturers": {
+    "ABB": "ABB",
+    "CHC": "EATON",
+    "MIL": "MILBANK",
+    "SEC": "SECUCONTROL",
+    "UNK": "Unknown / under review"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE ELECTRONIC COMPONENTS",
+   "categoryCodes": [],
+   "types": {
+    "PC": "passive / discrete component",
+    "IC": "integrated circuit",
+    "CN": "connector / header / socket",
+    "LD": "led / lamp",
+    "PB": "circuit board / heat sink",
+    "EC": "other electronic component"
+   },
+   "manufacturers": {
+    "TEC": "AMP",
+    "BOU": "BOURNS",
+    "COM": "COMCHIP",
+    "CUS": "CUSTOM CONNECTOR",
+    "DIO": "DIODE, INC.",
+    "DMP": "DMP",
+    "EDA": "EDAL",
+    "FIN": "FINDER",
+    "GEL": "GENERAL ELECTRIC",
+    "IDE": "IDEC",
+    "INT": "INTERNATIONAL RECTIFIER",
+    "LSE": "LAKE SHORE ELECTRIC",
+    "LIT": "LITTLEFUSE",
+    "MUL": "MULTICOMP",
+    "NIC": "NICHICON",
+    "OHM": "OHMITE",
+    "PHC": "PHOENIX CONTACT",
+    "RCD": "RCD COMPONENTS",
+    "SIM": "SIMPLEX",
+    "SQD": "SQUARE D",
+    "UNK": "Unknown / under review"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE LUGS & CONNECTORS",
+   "categoryCodes": [],
+   "types": {
+    "CL": "compression lug",
+    "DB": "power distribution block",
+    "GB": "ground / neutral bar",
+    "CN": "splice / tap / connector",
+    "ML": "mechanical lug / lug kit"
+   },
+   "manufacturers": {
+    "ABB": "ABB",
+    "TEC": "AMP",
+    "ANI": "ANIXTER BROTHERS, INC.",
+    "AWC": "AWC",
+    "CHC": "EATON",
+    "BRM": "BRUMALL",
+    "BUR": "BURNDY",
+    "CAB": "CABLOFIL",
+    "CEP": "CEP",
+    "CRE": "CRESCENT ELECTRIC",
+    "GEL": "GE/ED&C",
+    "GRA": "GRAINGER",
+    "HEY": "HEYCO",
+    "HJI": "HJ INTERNATIONAL",
+    "HUS": "HUSKY",
+    "ILS": "ILSCO",
+    "EGR": "LEGRAND-CABLOFIL",
+    "UNK": "Unknown / under review"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE ENCLOSURES & PANELS",
+   "categoryCodes": [],
+   "types": {
+    "EN": "enclosure / box",
+    "BP": "back panel / subpanel",
+    "DR": "door / cover / window kit",
+    "CC": "climate control",
+    "EA": "enclosure accessory",
+    "LF": "lighting fixture (interior / exterior / strip)"
+   },
+   "manufacturers": {
+    "ABB": "ABB",
+    "ADI": "ADIROFFICE",
+    "ADV": "ADVANTECH",
+    "ALB": "ALLEN BRADLEY",
+    "ALD": "ALLIED MOULDED PRODUCTS",
+    "AMA": "AMAZON",
+    "TEC": "AMP",
+    "AMR": "AMRAN INSTRUMENT TRANSFORMERS",
+    "ANI": "ANIXTER BROTHERS",
+    "APC": "APC",
+    "APP": "APPLETON",
+    "BAE": "BAE",
+    "BEL": "BELL",
+    "BRO": "BROOKSIDE DESIGN",
+    "CAB": "CABLOFIL",
+    "CAS": "CAST SPECIALTIES",
+    "UNK": "Unknown / under review"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE HARDWARE & FASTENERS",
+   "categoryCodes": [],
+   "types": {
+    "SC": "screw / bolt",
+    "NT": "nut / insert",
+    "WA": "washer",
+    "ST": "stud / rod / rivet / pin",
+    "HL": "handle / latch / lock",
+    "CL": "clamp / clip / grommet / plug",
+    "HW": "other hardware"
+   },
+   "manufacturers": {
+    "AEM": "A&E MACHINE AND FABRICATION INC",
+    "ALH": "A.L.HANSEN, SIERRA PACIFIC",
+    "ALG": "ALLEGIS",
+    "AMP": "AMPHENOL INDUSTRIAL",
+    "ARL": "ARLINGTON INDUSTRIES",
+    "ATK": "ATKORE",
+    "AVK": "AVK",
+    "BLA": "BLACKBURN",
+    "CEN": "CENTURY SPRING",
+    "CEP": "CEP",
+    "CHA": "CHALFANT",
+    "CON": "CONSOLIDATED METAL COMPONENTS",
+    "CRE": "CRESCENT ELECTRIC",
+    "CHC": "EATON",
+    "DUT": "DUTTON-LAINSON",
+    "ELS": "ELECTROSWITCH",
+    "EMK": "EMKA",
+    "UNK": "Unknown / under review"
+   },
+   "descriptionPattern": "Format"
+  },
+  {
+   "name": "LSE MISCELLANEOUS",
+   "categoryCodes": [],
+   "types": {
+    "ND": "no description - review",
+    "SV": "labor / service line",
+    "PK": "packaging / shipping material",
+    "MI": "miscellaneous item - review"
+   },
+   "manufacturers": {
+    "ABB": "ABB",
+    "ADV": "ADVANTECH",
+    "AER": "AEROMOTIVE",
+    "ALS": "AL;S ELECTRICAL MOTOR SERVICE",
+    "ALB": "ALLEN-BRADLEY",
+    "AMA": "AMAZON",
+    "AME": "AMERICO PROMATTING",
+    "AMR": "AMRAP GUTTERS",
+    "APP": "APP",
+    "ATE": "ATEVO",
+    "ATK": "ATKORE",
+    "BAR": "BARD",
+    "BSI": "BATTERY SYSTEMS INC.",
+    "BEL": "BELDEN",
+    "BOB": "BOBRICK",
+    "BRI": "BRIDGEPORT",
+    "BRO": "BROST",
+    "UNK": "Unknown / under review"
+   },
+   "descriptionPattern": "text"
+  }
+ ],
+ "manufacturers": {
+  "ABB": {
+   "name": "ABB",
+   "acadeManufacturer": "ABB"
+  },
+  "ABP": {
+   "name": "Ab",
+   "acadeManufacturer": "AB"
+  },
+  "ADI": {
+   "name": "ADIROFFICE",
+   "acadeManufacturer": ""
+  },
+  "ADV": {
+   "name": "ADVANCE DOOR CO",
+   "acadeManufacturer": "ADVANCE DOOR CO"
+  },
+  "AEG": {
+   "name": "Eec",
+   "acadeManufacturer": "EEC"
+  },
+  "AEM": {
+   "name": "A&E MACHINE AND FABRICATION INC",
+   "acadeManufacturer": ""
+  },
+  "AER": {
+   "name": "AEROMOTIVE",
+   "acadeManufacturer": "AEROMOTIVE"
+  },
+  "ALB": {
+   "name": "Allen-Bradley (Rockwell Automation)",
+   "acadeManufacturer": "AB"
+  },
+  "ALD": {
+   "name": "ALLIED MOULDED PRODUCTS",
+   "acadeManufacturer": ""
+  },
+  "ALG": {
+   "name": "ALLEGIS",
+   "acadeManufacturer": ""
+  },
+  "ALH": {
+   "name": "A.L.HANSEN",
+   "acadeManufacturer": ""
+  },
+  "ALS": {
+   "name": "AL;S ELECTRICAL MOTOR SERVICE",
+   "acadeManufacturer": ""
+  },
+  "ALT": {
+   "name": "Altech",
+   "acadeManufacturer": ""
+  },
+  "ALU": {
+   "name": "Aluma-Form",
+   "acadeManufacturer": ""
+  },
+  "AMA": {
+   "name": "AMAZON",
+   "acadeManufacturer": ""
+  },
+  "AME": {
+   "name": "AMERICAN SPECIALTIES INC",
+   "acadeManufacturer": ""
+  },
+  "AMN": {
+   "name": "Amran Instrument Transformers",
+   "acadeManufacturer": "AMRAN"
+  },
+  "AMP": {
+   "name": "AMPHENOL INDUSTRIAL",
+   "acadeManufacturer": "AMPHENOL INDUSTRIAL"
+  },
+  "AMR": {
+   "name": "AMRAN INSTRUMENT TRANSFORMERS",
+   "acadeManufacturer": ""
+  },
+  "AMS": {
+   "name": "American Solenoid",
+   "acadeManufacturer": "AMERICAN SOLENOID"
+  },
+  "AND": {
+   "name": "Ilsco",
+   "acadeManufacturer": "ILSCO"
+  },
+  "ANI": {
+   "name": "ANIXTER BROTHERS, INC.",
+   "acadeManufacturer": ""
+  },
+  "ANT": {
+   "name": "Eaton",
+   "acadeManufacturer": "EATON"
+  },
+  "ANX": {
+   "name": "Anixter",
+   "acadeManufacturer": ""
+  },
+  "APC": {
+   "name": "APC (Schneider Electric)",
+   "acadeManufacturer": "APC, SQUARE D"
+  },
+  "APM": {
+   "name": "Gear Company",
+   "acadeManufacturer": "GEAR COMPANY"
+  },
+  "APP": {
+   "name": "Appleton",
+   "acadeManufacturer": "APPLETON"
+  },
+  "ARL": {
+   "name": "Arlington",
+   "acadeManufacturer": "ARLINGTON"
+  },
+  "ARO": {
+   "name": "Arrow Hart",
+   "acadeManufacturer": "ARROW HART"
+  },
+  "ASC": {
+   "name": "ASCO (Schneider Electric)",
+   "acadeManufacturer": "ASCO"
+  },
+  "ASI": {
+   "name": "ASI",
+   "acadeManufacturer": ""
+  },
+  "ATC": {
+   "name": "Atc",
+   "acadeManufacturer": "ATC"
+  },
+  "ATD": {
+   "name": "ATD (Under Engineering Review)",
+   "acadeManufacturer": ""
+  },
+  "ATE": {
+   "name": "ATEVO",
+   "acadeManufacturer": ""
+  },
+  "ATK": {
+   "name": "Allied Tube & Conduit / Atkore",
+   "acadeManufacturer": ""
+  },
+  "AUT": {
+   "name": "Autonics",
+   "acadeManufacturer": "AUTONICS"
+  },
+  "AVK": {
+   "name": "AVK",
+   "acadeManufacturer": ""
+  },
+  "AVO": {
+   "name": "States Products",
+   "acadeManufacturer": "STATES PRODUCTS"
+  },
+  "AWC": {
+   "name": "AWC",
+   "acadeManufacturer": ""
+  },
+  "BAE": {
+   "name": "BAE",
+   "acadeManufacturer": ""
+  },
+  "BAR": {
+   "name": "BARD",
+   "acadeManufacturer": ""
+  },
+  "BAS": {
+   "name": "Basler",
+   "acadeManufacturer": "BASLER"
+  },
+  "BEL": {
+   "name": "Belden",
+   "acadeManufacturer": "BELDEN"
+  },
+  "BLA": {
+   "name": "BLACKBURN",
+   "acadeManufacturer": ""
+  },
+  "BMC": {
+   "name": "Brumall",
+   "acadeManufacturer": "BRUMALL"
+  },
+  "BOB": {
+   "name": "BOBRICK",
+   "acadeManufacturer": ""
+  },
+  "BOU": {
+   "name": "BOURNS",
+   "acadeManufacturer": ""
+  },
+  "BRI": {
+   "name": "BRIDGEPORT",
+   "acadeManufacturer": ""
+  },
+  "BRM": {
+   "name": "BRUMALL",
+   "acadeManufacturer": ""
+  },
+  "BRO": {
+   "name": "BROOKSIDE DESIGN",
+   "acadeManufacturer": ""
+  },
+  "BRY": {
+   "name": "Bryant",
+   "acadeManufacturer": "BRYANT"
+  },
+  "BSI": {
+   "name": "Battery Systems Inc.",
+   "acadeManufacturer": ""
+  },
+  "BSS": {
+   "name": "Boltswitch",
+   "acadeManufacturer": ""
+  },
+  "BUR": {
+   "name": "BURNDY",
+   "acadeManufacturer": "BURNDY"
+  },
+  "BUS": {
+   "name": "Bussmann (Eaton)",
+   "acadeManufacturer": "BUSSMANN"
+  },
+  "CAB": {
+   "name": "Cablofil (Legrand)",
+   "acadeManufacturer": ""
+  },
+  "CAL": {
+   "name": "Cal Fasteners",
+   "acadeManufacturer": "CAL FASTENERS"
+  },
+  "CAR": {
+   "name": "Carling",
+   "acadeManufacturer": "CARLING"
+  },
+  "CAS": {
+   "name": "CAST SPECIALTIES",
+   "acadeManufacturer": "CARLINGSWITCH"
+  },
+  "CCF": {
+   "name": "Coilcraft",
+   "acadeManufacturer": "COILCRAFT"
+  },
+  "CEN": {
+   "name": "CENTURY SPRING",
+   "acadeManufacturer": ""
+  },
+  "CEP": {
+   "name": "CEP",
+   "acadeManufacturer": ""
+  },
+  "CHA": {
+   "name": "Chalfant Manufacturing",
+   "acadeManufacturer": ""
+  },
+  "CHC": {
+   "name": "Eaton",
+   "acadeManufacturer": "EATON"
+  },
+  "CHN": {
+   "name": "Eaton",
+   "acadeManufacturer": "EATON"
+  },
+  "CIN": {
+   "name": "Cinch",
+   "acadeManufacturer": "CINCH"
+  },
+  "CNP": {
+   "name": "Panel Components & Sys",
+   "acadeManufacturer": "PANEL COMPONENTS & SYS"
+  },
+  "COM": {
+   "name": "COMCHIP",
+   "acadeManufacturer": ""
+  },
+  "CON": {
+   "name": "CONSOLIDATED METAL COMPONENTS",
+   "acadeManufacturer": ""
+  },
+  "COO": {
+   "name": "Eaton-Crouse Hinds",
+   "acadeManufacturer": "EATON-CROUSE HINDS"
+  },
+  "COR": {
+   "name": "Corning",
+   "acadeManufacturer": "CORNING"
+  },
+  "CRE": {
+   "name": "Crescent",
+   "acadeManufacturer": ""
+  },
+  "CTL": {
+   "name": "Catl",
+   "acadeManufacturer": "CATL"
+  },
+  "CUS": {
+   "name": "CUSTOM CONNECTOR",
+   "acadeManufacturer": "CUSTOM CONNECTOR"
+  },
+  "DAY": {
+   "name": "Dayton",
+   "acadeManufacturer": "DAYTON"
+  },
+  "DIM": {
+   "name": "Dimplex",
+   "acadeManufacturer": "DIMPLEX"
+  },
+  "DIO": {
+   "name": "DIODE, INC.",
+   "acadeManufacturer": "DIODE, INC."
+  },
+  "DIV": {
+   "name": "Diversified",
+   "acadeManufacturer": "DIVERSIFIED"
+  },
+  "DMP": {
+   "name": "DMP",
+   "acadeManufacturer": ""
+  },
+  "DSE": {
+   "name": "Deep Sea Electronics",
+   "acadeManufacturer": "DEEP SEA ELECTRONICS"
+  },
+  "DTK": {
+   "name": "Ditek",
+   "acadeManufacturer": ""
+  },
+  "DUT": {
+   "name": "DUTTON-LAINSON",
+   "acadeManufacturer": ""
+  },
+  "EAT": {
+   "name": "Eaton",
+   "acadeManufacturer": "EATON"
+  },
+  "EDA": {
+   "name": "EDAL",
+   "acadeManufacturer": "EDAL"
+  },
+  "EEC": {
+   "name": "EEC (Elektro-Elektronik Control)",
+   "acadeManufacturer": "EEC"
+  },
+  "EGR": {
+   "name": "LEGRAND-CABLOFIL",
+   "acadeManufacturer": ""
+  },
+  "EIG": {
+   "name": "Electro Industries",
+   "acadeManufacturer": "ELECTRO INDUSTRIES"
+  },
+  "EII": {
+   "name": "Elliott Molding",
+   "acadeManufacturer": "ELLIOTT MOLDING"
+  },
+  "ELA": {
+   "name": "Elastimold",
+   "acadeManufacturer": "ELASTIMOLD"
+  },
+  "ELE": {
+   "name": "Hubbell",
+   "acadeManufacturer": "HUBBELL"
+  },
+  "ELI": {
+   "name": "Electro Industries",
+   "acadeManufacturer": "ELECTRO INDUSTRIES"
+  },
+  "ELS": {
+   "name": "Electroswitch",
+   "acadeManufacturer": ""
+  },
+  "EMK": {
+   "name": "EMKA",
+   "acadeManufacturer": "EMKA, INC"
+  },
+  "ENC": {
+   "name": "Encore Wire",
+   "acadeManufacturer": ""
+  },
+  "ENT": {
+   "name": "Entrelec (ABB)",
+   "acadeManufacturer": ""
+  },
+  "EPC": {
+   "name": "EPCOS",
+   "acadeManufacturer": "EPCOS"
+  },
+  "ERI": {
+   "name": "Erico / Caddy",
+   "acadeManufacturer": "ERICO"
+  },
+  "ESC": {
+   "name": "Electroswitch",
+   "acadeManufacturer": "ELECTROSWITCH"
+  },
+  "ETA": {
+   "name": "Eta",
+   "acadeManufacturer": "ETA"
+  },
+  "ETC": {
+   "name": "Etched Metal Company",
+   "acadeManufacturer": ""
+  },
+  "ETN": {
+   "name": "Eaton",
+   "acadeManufacturer": "EATON"
+  },
+  "EUS": {
+   "name": "Lee Spring Company",
+   "acadeManufacturer": "LEE SPRING COMPANY"
+  },
+  "FAL": {
+   "name": "Falcon Electric",
+   "acadeManufacturer": ""
+  },
+  "FAR": {
+   "name": "Siemens",
+   "acadeManufacturer": "SIEMENS"
+  },
+  "FAT": {
+   "name": "Mcmaster-Carr",
+   "acadeManufacturer": "MCMASTER-CARR"
+  },
+  "FCC": {
+   "name": "Flex-Core",
+   "acadeManufacturer": "FLEX-CORE"
+  },
+  "FEN": {
+   "name": "Fenwal",
+   "acadeManufacturer": "FENWAL"
+  },
+  "FIN": {
+   "name": "FINDER",
+   "acadeManufacturer": "FINDER"
+  },
+  "FLK": {
+   "name": "Fluke",
+   "acadeManufacturer": "FLUKE"
+  },
+  "FSC": {
+   "name": "Bussmann",
+   "acadeManufacturer": "BUSSMANN"
+  },
+  "GCC": {
+   "name": "General Cable / Carol",
+   "acadeManufacturer": ""
+  },
+  "GEC": {
+   "name": "Ge",
+   "acadeManufacturer": "GE"
+  },
+  "GEL": {
+   "name": "GE / GE Grid / ITI",
+   "acadeManufacturer": ""
+  },
+  "GRA": {
+   "name": "GRAINGER",
+   "acadeManufacturer": "DAYTON"
+  },
+  "GRB": {
+   "name": "Graybar (distributor)",
+   "acadeManufacturer": ""
+  },
+  "GRC": {
+   "name": "Grace Technologies",
+   "acadeManufacturer": ""
+  },
+  "GRO": {
+   "name": "Groschopp",
+   "acadeManufacturer": "GROSCHOPP"
+  },
+  "GSK": {
+   "name": "Monroe",
+   "acadeManufacturer": "MONROE"
+  },
+  "HAM": {
+   "name": "Hammond Power Solutions",
+   "acadeManufacturer": "HAMMOND POWER SOLUTIONS"
+  },
+  "HAR": {
+   "name": "Mcmaster-Carr",
+   "acadeManufacturer": "MCMASTER-CARR"
+  },
+  "HAY": {
+   "name": "Heyco",
+   "acadeManufacturer": "HEYCO"
+  },
+  "HBC": {
+   "name": "Hubbell",
+   "acadeManufacturer": "HUBBELL"
+  },
+  "HEA": {
+   "name": "Heatrex, Inc.",
+   "acadeManufacturer": "HEATREX, INC."
+  },
+  "HEY": {
+   "name": "HEYCO",
+   "acadeManufacturer": "HEYCO"
+  },
+  "HFF": {
+   "name": "Nvent",
+   "acadeManufacturer": "NVENT"
+  },
+  "HIL": {
+   "name": "Hilti, Inc.",
+   "acadeManufacturer": "HILTI, INC."
+  },
+  "HIR": {
+   "name": "Hirschmann (Belden)",
+   "acadeManufacturer": ""
+  },
+  "HJE": {
+   "name": "The H & J Company",
+   "acadeManufacturer": "THE H & J COMPANY"
+  },
+  "HJI": {
+   "name": "HJ INTERNATIONAL",
+   "acadeManufacturer": ""
+  },
+  "HLX": {
+   "name": "Halex",
+   "acadeManufacturer": ""
+  },
+  "HOF": {
+   "name": "Hoffman",
+   "acadeManufacturer": "HOFFMAN"
+  },
+  "HUB": {
+   "name": "Hubbell / RACO / Killark",
+   "acadeManufacturer": "HUBBELL"
+  },
+  "HUS": {
+   "name": "HUSKY",
+   "acadeManufacturer": ""
+  },
+  "IDC": {
+   "name": "Idec",
+   "acadeManufacturer": "IDEC"
+  },
+  "IDE": {
+   "name": "IDEC",
+   "acadeManufacturer": "IDEC"
+  },
+  "IHW": {
+   "name": "Industrial Hardware Dist",
+   "acadeManufacturer": "INDUSTRIAL HARDWARE DIST"
+  },
+  "ILS": {
+   "name": "ILSCO",
+   "acadeManufacturer": "ILSCO"
+  },
+  "INT": {
+   "name": "INTERNATIONAL RECTIFIER",
+   "acadeManufacturer": ""
+  },
+  "IRI": {
+   "name": "Iriss Inc.",
+   "acadeManufacturer": "IRISS INC."
+  },
+  "ISO": {
+   "name": "Isolite",
+   "acadeManufacturer": ""
+  },
+  "ITC": {
+   "name": "Instrument Transformers",
+   "acadeManufacturer": "INSTRUMENT TRANSFORMERS"
+  },
+  "KEY": {
+   "name": "Keystone Electronics",
+   "acadeManufacturer": ""
+  },
+  "KKI": {
+   "name": "Kirk Key",
+   "acadeManufacturer": "KIRK KEY"
+  },
+  "KRK": {
+   "name": "Kirk Key Interlock Co. (Sentric)",
+   "acadeManufacturer": ""
+  },
+  "LAK": {
+   "name": "Sw Anderson",
+   "acadeManufacturer": "SW ANDERSON"
+  },
+  "LEE": {
+   "name": "Lee Spring Company",
+   "acadeManufacturer": "LEE SPRING COMPANY"
+  },
+  "LEV": {
+   "name": "Leviton",
+   "acadeManufacturer": "LEVITON"
+  },
+  "LIT": {
+   "name": "LITTLEFUSE",
+   "acadeManufacturer": "LITTELFUSE"
+  },
+  "LSE": {
+   "name": "LSE (made in house)",
+   "acadeManufacturer": "LAKE SHORE ELECTRIC"
+  },
+  "LTF": {
+   "name": "Littelfuse",
+   "acadeManufacturer": "LITTELFUSE"
+  },
+  "MAD": {
+   "name": "Maddox",
+   "acadeManufacturer": "MADDOX"
+  },
+  "MAG": {
+   "name": "Magnum",
+   "acadeManufacturer": "MAGNUM"
+  },
+  "MAL": {
+   "name": "Mallory",
+   "acadeManufacturer": "MALLORY"
+  },
+  "MAR": {
+   "name": "Marathon",
+   "acadeManufacturer": "MARATHON"
+  },
+  "MCC": {
+   "name": "Mcmaster-Carr",
+   "acadeManufacturer": "MCMASTER-CARR"
+  },
+  "MEI": {
+   "name": "Meister",
+   "acadeManufacturer": "MEISTER"
+  },
+  "MEL": {
+   "name": "Meltric",
+   "acadeManufacturer": "MELTRIC"
+  },
+  "MEN": {
+   "name": "Menics (Under Engineering Review)",
+   "acadeManufacturer": ""
+  },
+  "MER": {
+   "name": "Mersen / Ferraz Shawmut",
+   "acadeManufacturer": "MERSEN"
+  },
+  "MFA": {
+   "name": "Accuenergy",
+   "acadeManufacturer": "ACCUENERGY"
+  },
+  "MIC": {
+   "name": "Micron",
+   "acadeManufacturer": "MICRON"
+  },
+  "MID": {
+   "name": "Midwest",
+   "acadeManufacturer": ""
+  },
+  "MIL": {
+   "name": "Milbank",
+   "acadeManufacturer": "MILBANK"
+  },
+  "MLN": {
+   "name": "Anixter",
+   "acadeManufacturer": "ANIXTER"
+  },
+  "MMC": {
+   "name": "McMaster-Carr (distributor - Under Engineering Review)",
+   "acadeManufacturer": "PEPCO"
+  },
+  "MON": {
+   "name": "Monroe",
+   "acadeManufacturer": "MONROE"
+  },
+  "MOT": {
+   "name": "Motortronics",
+   "acadeManufacturer": "MOTORTRONICS"
+  },
+  "MOX": {
+   "name": "Moxa",
+   "acadeManufacturer": ""
+  },
+  "MUL": {
+   "name": "MULTICOMP",
+   "acadeManufacturer": ""
+  },
+  "NAM": {
+   "name": "Nameplate & Panel Technology",
+   "acadeManufacturer": ""
+  },
+  "NIC": {
+   "name": "NICHICON",
+   "acadeManufacturer": ""
+  },
+  "NPT": {
+   "name": "Nameplate & Panel Tech",
+   "acadeManufacturer": "NAMEPLATE & PANEL TECH"
+  },
+  "NSI": {
+   "name": "NSI Industries",
+   "acadeManufacturer": ""
+  },
+  "NUC": {
+   "name": "Nucor",
+   "acadeManufacturer": ""
+  },
+  "NVT": {
+   "name": "Novatech",
+   "acadeManufacturer": "NOVATECH"
+  },
+  "OHM": {
+   "name": "OHMITE",
+   "acadeManufacturer": ""
+  },
+  "OME": {
+   "name": "Custom Connector",
+   "acadeManufacturer": "CUSTOM CONNECTOR"
+  },
+  "OMN": {
+   "name": "OmniCable (distributors - Under Engineering Review)",
+   "acadeManufacturer": ""
+  },
+  "PAN": {
+   "name": "Panduit",
+   "acadeManufacturer": "PANDUIT"
+  },
+  "PCS": {
+   "name": "PC&S (Panel Components & Systems)",
+   "acadeManufacturer": "PANEL COMPONENTS & SYS"
+  },
+  "PEM": {
+   "name": "Sw Anderson",
+   "acadeManufacturer": "SW ANDERSON"
+  },
+  "PEP": {
+   "name": "Tcp",
+   "acadeManufacturer": "TCP"
+  },
+  "PFP": {
+   "name": "Monroe",
+   "acadeManufacturer": "MONROE"
+  },
+  "PHC": {
+   "name": "Phoenix Contact",
+   "acadeManufacturer": "PHOENIX CONTACT"
+  },
+  "PHO": {
+   "name": "Phoenix Contact",
+   "acadeManufacturer": "PHOENIX CONTACT"
+  },
+  "PHX": {
+   "name": "Phoenix Contact",
+   "acadeManufacturer": "PHOENIX CONTACT"
+  },
+  "PSC": {
+   "name": "Power Sonic",
+   "acadeManufacturer": "POWER SONIC"
+  },
+  "RAC": {
+   "name": "Hubbell",
+   "acadeManufacturer": "HUBBELL"
+  },
+  "RAY": {
+   "name": "Te Connectivity",
+   "acadeManufacturer": "TE CONNECTIVITY"
+  },
+  "RCD": {
+   "name": "RCD COMPONENTS",
+   "acadeManufacturer": ""
+  },
+  "RDI": {
+   "name": "Bussmann",
+   "acadeManufacturer": "BUSSMANN"
+  },
+  "RKE": {
+   "name": "R&K Electronics",
+   "acadeManufacturer": "R&K ELECTRONICS"
+  },
+  "RLH": {
+   "name": "Rlh",
+   "acadeManufacturer": "RLH"
+  },
+  "ROX": {
+   "name": "Roxtec",
+   "acadeManufacturer": ""
+  },
+  "SAC": {
+   "name": "Siemens",
+   "acadeManufacturer": "SIEMENS"
+  },
+  "SAL": {
+   "name": "Salzer",
+   "acadeManufacturer": "SALZER"
+  },
+  "SBO": {
+   "name": "Eaton",
+   "acadeManufacturer": "EATON"
+  },
+  "SCH": {
+   "name": "Schneider Electric",
+   "acadeManufacturer": "SEL"
+  },
+  "SCO": {
+   "name": "Littelfuse",
+   "acadeManufacturer": "LITTELFUSE"
+  },
+  "SDC": {
+   "name": "Sqd",
+   "acadeManufacturer": "SQD"
+  },
+  "SEC": {
+   "name": "SECUCONTROL",
+   "acadeManufacturer": "SECUCONTROL"
+  },
+  "SEL": {
+   "name": "Schweitzer Engineering Labs (SEL)",
+   "acadeManufacturer": "SEL"
+  },
+  "SEN": {
+   "name": "Sensaphone",
+   "acadeManufacturer": ""
+  },
+  "SHE": {
+   "name": "Lake Shore Electric",
+   "acadeManufacturer": "LAKE SHORE ELECTRIC"
+  },
+  "SIE": {
+   "name": "Siemens",
+   "acadeManufacturer": "SIEMENS"
+  },
+  "SIM": {
+   "name": "SIMPLEX",
+   "acadeManufacturer": ""
+  },
+  "SIP": {
+   "name": "Sierra Pacific",
+   "acadeManufacturer": "SIERRA PACIFIC"
+  },
+  "SMA": {
+   "name": "Signamax",
+   "acadeManufacturer": "SIGNAMAX"
+  },
+  "SMC": {
+   "name": "Marxon",
+   "acadeManufacturer": "MARXON"
+  },
+  "SOL": {
+   "name": "Sola",
+   "acadeManufacturer": "SOLAHD"
+  },
+  "SOU": {
+   "name": "Southwire",
+   "acadeManufacturer": "SOUTHCO"
+  },
+  "SPX": {
+   "name": "Simplex (Johnson Controls)",
+   "acadeManufacturer": ""
+  },
+  "SQD": {
+   "name": "Schneider Electric / Square D",
+   "acadeManufacturer": "SQD"
+  },
+  "STE": {
+   "name": "Stego",
+   "acadeManufacturer": "STEGO"
+  },
+  "STX": {
+   "name": "Stat-X",
+   "acadeManufacturer": "STAT-X"
+  },
+  "SUP": {
+   "name": "Superior Interlock Corp",
+   "acadeManufacturer": "SUPERIOR INTERLOCK CORP"
+  },
+  "SXX": {
+   "name": "Cable Wholesale",
+   "acadeManufacturer": "CABLE WHOLESALE"
+  },
+  "TAP": {
+   "name": "Tapecon",
+   "acadeManufacturer": "TAPECON"
+  },
+  "TCP": {
+   "name": "Tcp",
+   "acadeManufacturer": "TCP"
+  },
+  "TEC": {
+   "name": "AMP",
+   "acadeManufacturer": ""
+  },
+  "TEI": {
+   "name": "Thermal Edge",
+   "acadeManufacturer": "THERMAL EDGE"
+  },
+  "TEL": {
+   "name": "Telemecanique",
+   "acadeManufacturer": "TELEMECANIQUE"
+  },
+  "THO": {
+   "name": "Thor",
+   "acadeManufacturer": ""
+  },
+  "THR": {
+   "name": "Thor Systems Inc.",
+   "acadeManufacturer": "THOR SYSTEMS INC."
+  },
+  "TOR": {
+   "name": "Tork",
+   "acadeManufacturer": "TORK"
+  },
+  "TOS": {
+   "name": "Toshiba",
+   "acadeManufacturer": "TOSHIBA"
+  },
+  "TPE": {
+   "name": "Uline",
+   "acadeManufacturer": "ULINE"
+  },
+  "TPZ": {
+   "name": "Topaz",
+   "acadeManufacturer": ""
+  },
+  "TRP": {
+   "name": "Trendpoint",
+   "acadeManufacturer": "TRENDPOINT"
+  },
+  "UNK": {
+   "name": "Unknown (Under Engineering Review)",
+   "acadeManufacturer": ""
+  },
+  "VIS": {
+   "name": "Vishay",
+   "acadeManufacturer": "VISHAY"
+  },
+  "VOV": {
+   "name": "Grace Eng",
+   "acadeManufacturer": "GRACE ENG"
+  },
+  "WAG": {
+   "name": "WAGO",
+   "acadeManufacturer": "WAGO"
+  },
+  "WAT": {
+   "name": "Wattstopper",
+   "acadeManufacturer": "WATTSTOPPER"
+  },
+  "WEI": {
+   "name": "Weidmuller",
+   "acadeManufacturer": "WEIDMULLER"
+  },
+  "WES": {
+   "name": "Wes",
+   "acadeManufacturer": "WES"
+  },
+  "WHE": {
+   "name": "Wheatland Tube",
+   "acadeManufacturer": ""
+  },
+  "WIE": {
+   "name": "Wieland",
+   "acadeManufacturer": "WIELAND"
+  },
+  "WIL": {
+   "name": "Wilmore Electronics",
+   "acadeManufacturer": ""
+  },
+  "XTR": {
+   "name": "Xtreeme Power Conversion",
+   "acadeManufacturer": "XTREEME POWER CONVERSION"
+  },
+  "XXX": {
+   "name": "Unknown / generic (e.g. McMaster-Carr)",
+   "acadeManufacturer": "MCMASTER-CARR"
+  },
+  "XYM": {
+   "name": "Xymox",
+   "acadeManufacturer": "XYMOX"
+  }
+ },
+ "familyHints": {
+  "01": [
+   "PM",
+   "PLCIO",
+   "MISC_CAT"
+  ],
+  "02": [
+   "PB",
+   "SS",
+   "LR"
+  ],
+  "03": [
+   "MISC_CAT"
+  ],
+  "04": [
+   "LT",
+   "EN",
+   "SS"
+  ],
+  "05": [
+   "AN",
+   "EN",
+   "MISC_CAT"
+  ],
+  "06": [
+   "PLCIO"
+  ],
+  "11": [
+   "CB",
+   "DS",
+   "MISC_CAT"
+  ],
+  "12": [
+   "CB",
+   "XF",
+   "PM"
+  ],
+  "14": [
+   "DS",
+   "DV",
+   "MISC_CAT"
+  ],
+  "15": [
+   "MS"
+  ],
+  "17": [
+   "MISC_CAT",
+   "CB",
+   "PB"
+  ],
+  "19": [
+   "MISC_CAT",
+   "CB",
+   "EN"
+  ],
+  "21": [
+   "CB",
+   "XF",
+   "DS"
+  ],
+  "24": [
+   "CON",
+   "DS",
+   "W0"
+  ],
+  "25": [
+   "FU"
+  ],
+  "26": [
+   "CB"
+  ],
+  "31": [
+   "CR",
+   "W0",
+   "CB"
+  ],
+  "32": [
+   "CR",
+   "EN",
+   "MISC_CAT"
+  ],
+  "33": [
+   "TD",
+   "CR",
+   "CB"
+  ],
+  "35": [
+   "W0",
+   "PLCIO",
+   "COM"
+  ],
+  "36": [
+   "DV",
+   "EN"
+  ],
+  "37": [
+   "DV"
+  ],
+  "38": [
+   "CB"
+  ],
+  "41": [
+   "XF"
+  ],
+  "42": [
+   "XF",
+   "MISC_CAT"
+  ],
+  "43": [
+   "MISC_CAT",
+   "CR",
+   "XF"
+  ],
+  "45": [
+   "FU",
+   "CB",
+   "MISC_CAT"
+  ],
+  "46": [
+   "CB",
+   "NP"
+  ],
+  "47": [
+   "MISC_CAT",
+   "W0",
+   "C0"
+  ],
+  "48": [
+   "W0",
+   "CON",
+   "WW"
+  ],
+  "49": [
+   "EN",
+   "MISC_CAT",
+   "NP"
+  ],
+  "50": [
+   "TRMS",
+   "NP",
+   "DI"
+  ],
+  "51": [
+   "MISC_CAT",
+   "EN",
+   "CON"
+  ],
+  "52": [
+   "PW"
+  ],
+  "53": [
+   "MISC_CAT",
+   "CR"
+  ],
+  "54": [
+   "EN",
+   "COM"
+  ],
+  "56": [
+   "SU",
+   "MISC_CAT",
+   "DV"
+  ],
+  "58": [
+   "NP",
+   "MISC_CAT",
+   "AN"
+  ],
+  "59": [
+   "PW",
+   "MISC_CAT",
+   "PLCIO"
+  ],
+  "61": [
+   "EN",
+   "MISC_CAT"
+  ],
+  "63": [
+   "EN",
+   "CON",
+   "WW"
+  ],
+  "64": [
+   "W0",
+   "MISC_CAT"
+  ],
+  "65": [
+   "EN"
+  ],
+  "75": [
+   "EN"
+  ],
+  "76": [
+   "FU",
+   "CON"
+  ]
+ }
+}

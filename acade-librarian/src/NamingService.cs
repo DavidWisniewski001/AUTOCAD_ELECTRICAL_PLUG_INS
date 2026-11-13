@@ -1,0 +1,15 @@
+using System.Text.RegularExpressions;
+namespace LSE.AutoCADElectrical.Librarian;
+public static class NamingService {
+ public static List<string> Validate(KindRule r,string name){var x=new List<string>();if(name.Trim().Length==0){x.Add("Name is required.");return x;}if(name.IndexOfAny(Path.GetInvalidFileNameChars())>=0)x.Add("Name contains characters Windows does not allow in a file name.");if(name.Length>r.MaxNameLength)x.Add($"Name is {name.Length} characters; the standard allows {r.MaxNameLength}.");if(name.EndsWith(".dwg",StringComparison.OrdinalIgnoreCase))x.Add("Leave the .dwg extension off.");if(!Regex.IsMatch(name,r.NamePattern))x.Add("Name does not follow the "+r.DisplayName.ToLowerInvariant()+" pattern. Example: "+r.NameExample+". "+r.NameHelp);return x;}
+ public static bool Matches(KindRule r,string name)=>Regex.IsMatch(name,r.NamePattern)&&name.Length<=r.MaxNameLength;
+ public static Match Parse(KindRule r,string name)=>Regex.Match(name,r.NamePattern);
+ public static string Sanitize(string text,bool allowSpaces=false){string t=text.Trim().ToUpperInvariant();t=Regex.Replace(t,@"\s+",allowSpaces?" ":"_");t=Regex.Replace(t,allowSpaces?@"[^A-Z0-9_\-&. ()]":@"[^A-Z0-9_\-&.()]","");t=Regex.Replace(t,"_{2,}","_");t=Regex.Replace(t,"-{2,}","-");return t.Trim('_','-',' ');}
+ public static string SymbolName(string orientation,string family,string role,string variant,string series,string description)=>$"{orientation.Trim().ToUpperInvariant()}{family.Trim().ToUpperInvariant()}{role.Trim()}{variant.Trim().ToUpperInvariant()}_{series.Trim()}-{Sanitize(description)}";
+ public static string FootprintName(string prefix,string series,string manufacturer,string description)=>$"{prefix.Trim().ToUpperInvariant()}_{series.Trim()}-{Sanitize(manufacturer).Replace("_","").Replace("-","")}_{Sanitize(description)}";
+ public static string Series(string v)=>Regex.IsMatch(v.Trim(),@"^\d{3}$")?v.Trim():throw new InvalidOperationException("Series must be exactly three digits, for example 002.");
+ public static LibraryKind? KindFor(AppSettings s,string path){if(Inside(path,s.UserCircuitsFolder))return LibraryKind.UserCircuit;if(Inside(path,s.SymbolLibraryFolder))return LibraryKind.SchematicSymbol;if(Inside(path,s.FootprintLibraryFolder))return Path.GetFileNameWithoutExtension(path).StartsWith("NP_",StringComparison.OrdinalIgnoreCase)?LibraryKind.Nameplate:LibraryKind.PanelFootprint;return null;}
+ public static bool Inside(string path,string folder){if(string.IsNullOrWhiteSpace(folder)||string.IsNullOrWhiteSpace(path))return false;try{string f=Path.GetFullPath(folder).TrimEnd('\\','/')+Path.DirectorySeparatorChar,p=Path.GetFullPath(path);return p.StartsWith(f,StringComparison.OrdinalIgnoreCase);}catch{return false;}}
+ public static string Relative(string path,string folder){if(!Inside(path,folder))return path;return Path.GetFullPath(path)[(Path.GetFullPath(folder).TrimEnd('\\','/').Length+1)..];}
+ public static bool IsIgnoredFolder(string name,LibraryStandard std)=>name.StartsWith("_")||std.IgnoreFolders.Any(f=>f.Equals(name,StringComparison.OrdinalIgnoreCase));
+}

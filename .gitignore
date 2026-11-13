@@ -1,0 +1,24 @@
+# Build output
+bin/
+obj/
+*.user
+.vs/
+*.suo
+
+# AutoCAD Electrical install mirror / catalog backups (13 GB of .mdb files)
+AutoCAD_Electrical_2026/
+
+# Large binary reference material (kept on Google Drive "Reference" folder)
+reference/dat MENU/
+reference/vault-zips/
+
+# Release zips are published to Google Drive Releases/Current; keep guides and packaging scripts only
+releases/**/*.zip
+
+# Local tooling
+graphify-out/
+.claude/settings.local.json
+__pycache__/
+*.pyc
+Thumbs.db
+.DS_Store

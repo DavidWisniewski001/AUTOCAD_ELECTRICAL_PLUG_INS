@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copy the LSE.Librarian.bundle folder to %APPDATA%\Autodesk\ApplicationPlugins\ (per user) or
+     C:\ProgramData\Autodesk\ApplicationPlugins\ (all users) and put the Release build output in Contents\. -->
+<ApplicationPackage SchemaVersion="1.0" AutodeskProduct="AutoCAD" ProductType="Application"
+                    Name="LSE Librarian" AppVersion="1.0.0" Description="Files new AutoCAD Electrical symbols, footprints, nameplates and circuits into the LSE libraries and icon menus."
+                    Author="Lake Shore Electric" ProductCode="{A3F1C7D2-6B44-4E0B-9D1E-5C8A2F7B3E01}" UpgradeCode="{A3F1C7D2-6B44-4E0B-9D1E-5C8A2F7B3E02}">
+  <CompanyDetails Name="Lake Shore Electric" />
+  <Components Description="AutoCAD Electrical 2026">
+    <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R25.1" SeriesMax="R25.1" />
+    <ComponentEntry AppName="LSE.AutoCADElectrical.Librarian" ModuleName="./Contents/LSE.AutoCADElectrical.Librarian.dll"
+                    AppDescription="LSE Librarian" LoadOnCommandInvocation="True" LoadOnAutoCADStartup="False">
+      <Commands GroupName="LSELIBRARIAN">
+        <Command Global="LSELIBRARIAN" Local="LSELIBRARIAN" />
+        <Command Global="LSELIBRARYAUDIT" Local="LSELIBRARYAUDIT" />
+        <Command Global="LSECATALOGADD" Local="LSECATALOGADD" />
+        <Command Global="LSEFOOTPRINTMAP" Local="LSEFOOTPRINTMAP" />
+        <Command Global="LSELIBRARYSETTINGS" Local="LSELIBRARYSETTINGS" />
+        <Command Global="LSELIBRARYDIAG" Local="LSELIBRARYDIAG" />
+      </Commands>
+    </ComponentEntry>
+  </Components>
+</ApplicationPackage>

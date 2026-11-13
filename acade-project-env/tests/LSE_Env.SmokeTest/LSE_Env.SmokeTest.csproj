@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Console smoke test for the parts of LSE_Env that run without AutoCAD: text files, rules, profiles, the wire-network
+       engine, the planner and the apply transaction (through fake drawing bridges). Build LSE_Env in Release first, then:
+         dotnet run -c Release - -project tests\LSE_Env.SmokeTest\LSE_Env.SmokeTest.csproj
+       It never touches a real project: everything happens in a temporary folder. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="LSE_Env"><HintPath>..\..\bin\Release\LSE_Env.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

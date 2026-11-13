@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copy the LSE.ProjectTools.bundle folder to %APPDATA%\Autodesk\ApplicationPlugins\ (per user) or
+     C:\ProgramData\Autodesk\ApplicationPlugins\ (all users) and put the Release build output in Contents\. -->
+<ApplicationPackage SchemaVersion="1.0" AutodeskProduct="AutoCAD" ProductType="Application"
+                    Name="LSE Project Tools" AppVersion="1.0.0" Description="Creates AutoCAD Electrical projects from LSE templates."
+                    Author="Lake Shore Electric" ProductCode="{7C2E7E63-5A2B-4B2E-9C3E-2E0A5B6D1F01}" UpgradeCode="{7C2E7E63-5A2B-4B2E-9C3E-2E0A5B6D1F02}">
+  <CompanyDetails Name="Lake Shore Electric" />
+  <Components Description="AutoCAD Electrical 2026">
+    <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R25.1" SeriesMax="R25.1" />
+    <ComponentEntry AppName="LSE.AutoCADElectrical.ProjectTools" ModuleName="./Contents/LSE.AutoCADElectrical.ProjectTools.dll"
+                    AppDescription="LSE Project Tools" LoadOnCommandInvocation="True" LoadOnAutoCADStartup="False">
+      <Commands GroupName="LSEPROJECTTOOLS">
+        <Command Global="LSENEWPROJECT" Local="LSENEWPROJECT" />
+        <Command Global="LSEPROJECTACTIVATE" Local="LSEPROJECTACTIVATE" />
+        <Command Global="LSEPROJECTSETTINGS" Local="LSEPROJECTSETTINGS" />
+        <Command Global="LSEPROJECTDIAG" Local="LSEPROJECTDIAG" />
+      </Commands>
+    </ComponentEntry>
+  </Components>
+</ApplicationPackage>
