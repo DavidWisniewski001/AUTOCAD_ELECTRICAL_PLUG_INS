@@ -18,13 +18,30 @@ scope's defaults: keep the node number and show to/from as its own label; one st
 at the far end on printed labels; `:` and `/` delimiters; no location prefix; `?` for a missing pin plus a line in the
 validation report; terminal blocks are endpoints; internal wires only; C# DLL loaded with NETLOAD.
 
-**Status (2026-11-12):** compiles in Release with no warnings against the AutoCAD.NET 25.1.0 reference package; the
-smoke test in `tests\LSE_ToFrom.SmokeTest` (73 checks: config, project file, identifier composition, report import,
-planning against fake drawings, insert/update/keep/delete by key, run twice unchanged, retag, stale and duplicate labels,
-locked and open drawings, current-drawing scope, layer conflicts, CSV layout and quoting, rollback, read-only refusal,
-stale-database detection) passes; the plugin has **not** been loaded into AutoCAD Electrical. The scratch-database table
+**Status (2026-11-13, build `2026-11-13-r1`):** compiles in Release with no warnings against the AutoCAD.NET 25.1.0
+reference package; the smoke test in `tests\LSE_ToFrom.SmokeTest` (109 checks: config, project file, identifier
+composition, report import, planning against fake drawings, insert/update/keep/delete by key, run twice unchanged, retag,
+stale and duplicate labels, locked and open drawings, current-drawing scope, layer conflicts, CSV layout and quoting,
+rollback, read-only refusal, stale-database detection, the plan grid on a real `DataGridView`, build tag, database search
+folders, settings upgrade) passes; the plugin has **not** been loaded into AutoCAD Electrical. The scratch-database table
 that holds the from/to rows is undocumented, so `database.wireSql` in the config is **empty** until `LSETOFROMDISCOVER`
 has been run once on a workstation (Discovery phase of the work plan). Until then use the report-file data source.
+
+r1 (2026-11-13) prepares the first run in AutoCAD: every window title ends with the build tag `[2026-11-13-r1]` (the error
+dialog, the error log and `LSETOFROMDIAG` name it too, so a stale DLL is obvious); the Apply? boxes in the plan grid are
+toggled by the form itself on a click or the space bar (`src\GridService.cs`, the same cure that fixed the dead boxes in
+LSE_Doctor and LSE_Env) and rows that cannot be written say **note**; the LISP bridge tries the command line and then
+`acedEvaluateLisp`, and the default expressions try several candidate functions each (`ace_getactiveproject`,
+`wd_proj_wdp_fnam`, `GBL_wd_prj`; `wd_mdb_get_proj_scratch_dbnam` with and without `c:`); `LSETOFROMDIAG` and
+`LSETOFROMDISCOVER` run a live probe of that bridge and print what each function returned; the scratch database is also
+looked for in `database.searchFolders` (`{FOLDER}`, `{TEMP}`, `{LOCALAPPDATA}\Temp`); and `LSETOFROM` no longer plans on
+opening when the data source is not ready (no query yet, or no report file picked), it tells you what to do instead.
+r1 also closes the suspected bugs found in the 2026-11-13 code read (`..\KNOWN-ISSUES.md`, Wire To/From section): the
+plan is dropped when Annotate, Current drawing only or the data source changes after Plan; Export CSV re-evaluates the
+Apply button; Tick recommended leaves stale-label deletions to you; the sheet number reaches the label CSV; a failed run
+puts back the previous output files and is appended to the project report; a re-placed label no longer creeps along the
+wire; discovery writes the query without stripping the config's comments; `reportFile.delimiter` accepts `tab`; the
+provider fallback keeps Jet 4; the assembly carries version 1.1.0.
 
 **Status (2026-11-13):** source unchanged since 2026-11-12. LSE_ToFrom is **not in any release package yet**: the
 2026-11-12-r7 cut in `..\releases\` carries the other six plugins only, so it has to be built from this folder. Unlike
@@ -40,10 +57,10 @@ Versioning below); a Vault-locked closed drawing is caught only by the read-only
 | `LSETOFROM` | The dialog: pick the project and data source, Plan, review the grid of label changes (insert, update, keep, delete stale, skip with reason), tick, Apply. Writes the labels and the CSVs. Help button and tooltips |
 | `LSETOFROMEXPORT` | No planning dialog: read the data for the active project (data source and report file as last saved in the `LSETOFROM` window), write the label CSV, the report CSV, the validation report and the run log, then show the run log and the validation text. Drawings are not read or written |
 | `LSETOFROMVALIDATE` | No planning dialog, nothing written to drawings: read data and drawings (whole project, or the current drawing when "Current drawing only by default" is on in settings), write `<project>_tofrom_validation.txt` and show it with the plan text |
-| `LSETOFROMDISCOVER` | Discovery: list every table and column of the project database, mark the table that carries the from/to columns, show its first rows, offer to write the `SELECT` into the config, save a findings note |
+| `LSETOFROMDISCOVER` | Discovery: probe the LISP bridge, list every path looked at for the project database, list every table and column of the database, mark the table that carries the from/to columns, show its first rows, offer to write the `SELECT` into the config, save a findings note |
 | `LSETOFROMBLOCKS` | Write `TOFROM_LBL_H.dwg` and `TOFROM_LBL_V.dwg` to a folder, and add the label layer and both block definitions to the current drawing (run once inside the department template `.dwt`) |
 | `LSETOFROMSETTINGS` | Config path, data source, stale-database policy, backups, the three LISP bridges, defaults |
-| `LSETOFROMDIAG` | Runtime, settings, config summary, ADODB and provider availability, the unverified list |
+| `LSETOFROMDIAG` | Build tag, runtime, settings, a live probe of the LISP bridge (which evaluation path works, what the active-project and scratch-database functions returned), config summary, ADODB and provider availability, the unverified list |
 
 The commands that work on a project (`EXPORT`, `VALIDATE`, `DISCOVER`) take the active project, or the only `.wdp` in
 the current drawing's folder; with neither they stop and say so. `LSETOFROM` lets you browse instead.
@@ -121,8 +138,8 @@ exception to `%APPDATA%\LSE\LSE_ToFrom\Logs\Error_<stamp>.txt`.
 - `config\tofrom.config.json` (shared, copied next to the DLL): identifier format and delimiters, missing-pin and
   missing-tag text, location prefix, schematic placement (label at from/to/both, layer, block names, attributes, text
   height, offsets, collision, reposition on re-run, delete stale), CSV (delimiter, encoding, reverse at far end, output
-  folder and names), database (path pattern, providers, `wireSql`, `drawingSql`, index base, column map, candidate
-  columns), report-file column map. Every key is explained in the file. When `LSETOFROMDISCOVER` saves the query it
+  folder and names), database (path pattern, search folders, providers, `wireSql`, `drawingSql`, index base, column map,
+  candidate columns), report-file column map. Every key is explained in the file. When `LSETOFROMDISCOVER` saves the query it
   rewrites the whole file: the comments are lost and the keys come back in PascalCase (still read correctly). Keep a
   commented copy.
 
@@ -155,11 +172,16 @@ When the plugin joins a release, add a version to the `.csproj` and a build tag 
    (one user) or `C:\ProgramData\Autodesk\ApplicationPlugins\` (all users) with the build output in `Contents\`; the
    manifest loads the DLL on the first `LSETOFROM...` command, not at start-up. Keep the config somewhere writable if
    `LSETOFROMDISCOVER` is to save into it (point `Config JSON` in settings at it).
-2. Run `LSETOFROMDIAG`: ADODB must be available and at least one ACE provider registered.
+2. Run `LSETOFROMDIAG`: the first line must say `Build: 2026-11-13-r1` (an older tag means an old DLL is still loaded;
+   close AutoCAD Electrical completely before replacing a DLL). ADODB must be available and at least one ACE provider
+   registered. The "LISP bridge" block says whether the command-line or the `acedEvaluateLisp` path works and what the
+   active-project and scratch-database functions returned; both blank means you browse to the `.wdp` in `LSETOFROM` and the
+   database is found through `database.pathPattern` and `database.searchFolders`.
 3. **Discovery (once per release of AutoCAD Electrical):** open a test project, run a native Wire From/To report once so the
    scratch database exists and is current, then `LSETOFROMDISCOVER`. Accept the suggested `SELECT` if the candidate
    table shows the right columns; otherwise edit `database.columns` to the names listed and run it again. Save the native
-   report to a CSV as ground truth.
+   report to a CSV as ground truth. If the report says the database is MISSING, it lists every path it looked at: add the
+   folder the scratch-database LISP returned to `database.searchFolders`, or set `database.pathPattern`.
 4. `LSETOFROMBLOCKS`: write the two block DWGs next to the DLL, and add layer and blocks to the department template.
 5. On a **copy** of a real project: `LSETOFROMVALIDATE`, read the report, then `LSETOFROM`, Plan, Apply. Compare
    `<project>_tofrom_report.csv` with the native report row for row, then work through the ten acceptance tests in
@@ -170,8 +192,12 @@ When the plugin joins a release, add a version to the `.csproj` and a build tag 
 - The scratch database: its file name (`{FOLDER}\{PROJECT}.mdb` by default, or whatever `c:wd_mdb_get_proj_scratch_dbnam`
   returns), the table that holds the from/to rows, its column names, that `WIREHDL1/2` are entity handles of the wire
   segment touching each component and `CMPHDL1/2` the component blocks, and that `DWGIX` counts from 1 in `.wdp` order.
-- The LISP entry points `ace_getactiveproject` and `c:wd_mdb_get_proj_scratch_dbnam`, and how the database is refreshed
-  from code (no refresh function is configured; running a native report refreshes it).
+- The LISP entry points (`ace_getactiveproject`, `wd_proj_wdp_fnam`, `GBL_wd_prj`, `wd_mdb_get_proj_scratch_dbnam`) and
+  which of the two evaluation paths (`Editor.Command`, `acedEvaluateLisp` through `accore.dll`) works in 2026; and how
+  the database is refreshed from code (no refresh function is configured; running a native report refreshes it).
+- That the plan grid's Apply? boxes respond to the first click inside AutoCAD's modal dialog host. r1 handles the click
+  itself (`CellClick`, space bar) and paints `note` on rows that cannot be written; proven on a real `DataGridView`
+  outside AutoCAD, not yet inside it.
 - Everything written through the AutoCAD API: side databases, `LockDocument` on open drawings, block definition
   creation, `Database.Wblock` export, attribute alignment, that `.dwl` files mark a drawing as locked.
 - The default offsets and text height (inch-based drawings assumed).

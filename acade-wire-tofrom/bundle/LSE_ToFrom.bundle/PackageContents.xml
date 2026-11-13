@@ -3,7 +3,7 @@
      C:\ProgramData\Autodesk\ApplicationPlugins\ (all users) and put the Release build output (DLL, tofrom.config.json,
      optional TOFROM_LBL_H.dwg / TOFROM_LBL_V.dwg) in Contents\. -->
 <ApplicationPackage SchemaVersion="1.0" AutodeskProduct="AutoCAD" ProductType="Application"
-                    Name="LSE_ToFrom" AppVersion="1.0.0" Description="True To/From wire identifiers (FROMTAG:PIN/TOTAG:PIN) as a managed label layer driven by AutoCAD Electrical's from/to data, plus the CSV for the wire label printer."
+                    Name="LSE_ToFrom" AppVersion="1.1.0" Description="True To/From wire identifiers (FROMTAG:PIN/TOTAG:PIN) as a managed label layer driven by AutoCAD Electrical's from/to data, plus the CSV for the wire label printer."
                     Author="Lake Shore Electric" ProductCode="{7B2E4F90-3C61-4D8A-9E57-2A1B6C8D0F31}" UpgradeCode="{7B2E4F90-3C61-4D8A-9E57-2A1B6C8D0F32}">
   <CompanyDetails Name="Lake Shore Electric" />
   <Components Description="AutoCAD Electrical 2026">

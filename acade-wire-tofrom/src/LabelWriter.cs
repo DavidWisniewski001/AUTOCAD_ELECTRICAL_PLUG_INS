@@ -242,9 +242,16 @@ public static class LabelWriter
                     SetAttributes(existing, transaction, schematic, change, database);
                     if (schematic.RepositionOnRerun)
                     {
+                        Point3d current = existing.Position;
+                        occupied.RemoveAll(o => o.DistanceTo(current) < 1e-6);
                         Placement? moved = Locate(database, transaction, change, schematic, occupied, log);
-                        if (moved is not null)
+                        if (moved is null)
                         {
+                            occupied.Add(current);
+                        }
+                        else
+                        {
+                            occupied.Add(moved.Position);
                             existing.UpgradeOpen();
                             existing.Position = moved.Position;
                             existing.Layer = schematic.LabelLayer;

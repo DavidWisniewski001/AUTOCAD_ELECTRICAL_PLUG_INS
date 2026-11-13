@@ -30,7 +30,9 @@ each end, in the order given by the network's wire sequence. The plugin turns th
 | `src/Export.cs` | label CSV, report CSV, validation report, CSV quoting and encodings | no | compact |
 | `src/RunService.cs` | the run transaction: backup, write, verify, export, log, prune, rollback | no (through the bridge) | compact |
 | `src/LabelWriter.cs` | reads existing labels and `WD_M` layer settings; places, updates and deletes labels; block definitions; DWG export | yes | expanded |
-| `src/AcadeInterop.cs` | LISP bridges (active project, scratch database path, refresh) through USERS1; the host bridge | yes | compact |
+| `src/AcadeInterop.cs` | LISP bridges (active project, scratch database path, refresh) through USERS1 by two evaluation paths (`Editor.Command`, `acedEvaluateLisp`); the live probe; the host bridge | yes (+ P/Invoke into `accore.dll`) | compact |
+| `src/BuildInfo.cs` | the release tag shown in every title, the error dialog and log, and `LSETOFROMDIAG` | no | compact |
+| `src/GridService.cs` | the plan grid: columns, fill, click/space toggling, `note` rows, painting | WinForms | expanded |
 | `src/ToFromForm.cs` | the main dialog | WinForms | expanded |
 | `src/ToFromSettingsForm.cs`, `src/TextReportForm.cs` | settings and text report dialogs | WinForms | compact |
 | `src/DiagnosticsService.cs`, `src/ErrorService.cs`, `src/HelpText.cs` | diagnostics text, three-part error dialog with log, help text | no | compact |
@@ -135,9 +137,11 @@ Nothing below `IdentifierService`, `RunService`, `Export`, `ProjectService`, `Re
 
 ## 5. Process, threading and COM model
 
-Everything runs on AutoCAD's UI thread inside a modal command. The LISP bridges are synchronous `Editor.Command` calls
-made before the dialog opens (they fail inside a modal dialog). ADODB is created from its ProgID, opened with `Mode=1`
-(read), and released with `Marshal.FinalReleaseComObject` in `finally`. No background threads, no timers.
+Everything runs on AutoCAD's UI thread inside a modal command. The LISP bridges are synchronous calls made before the
+dialog opens (they fail inside a modal dialog): first `Editor.Command` with the expression, and when USERS1 stays blank,
+`acedEvaluateLisp` from `accore.dll` by P/Invoke (the x64 decorated export; the result buffer is released with
+`acutRelRb`). Whichever fills USERS1 wins; `LSETOFROMDIAG` shows which. ADODB is created from its ProgID, opened with
+`Mode=1` (read), and released with `Marshal.FinalReleaseComObject` in `finally`. No background threads, no timers.
 
 ## 6. Units, coordinates and encodings
 

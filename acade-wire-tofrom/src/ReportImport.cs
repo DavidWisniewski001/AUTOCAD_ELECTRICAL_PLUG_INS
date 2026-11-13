@@ -5,7 +5,7 @@ namespace LSE.AutoCADElectrical.WireToFrom;
 public static class ReportImport {
  public static List<WireRow> Read(string path,ReportFileConfig c,List<string> notes){if(!File.Exists(path))throw new FileNotFoundException("Report file was not found.",path);
   var lines=File.ReadAllLines(path,Detect(path)).ToList();if(lines.All(l=>l.Trim().Length==0))throw new InvalidOperationException("The report file is empty: "+path);
-  char delim=c.Delimiter.Length>0?(c.Delimiter.Equals("\\t",StringComparison.Ordinal)?'\t':c.Delimiter[0]):Guess(lines.First(l=>l.Trim().Length>0));
+  char delim=c.Delimiter.Length>0?(c.Delimiter.Equals("\\t",StringComparison.Ordinal)||c.Delimiter.Equals("tab",StringComparison.OrdinalIgnoreCase)?'\t':c.Delimiter[0]):Guess(lines.First(l=>l.Trim().Length>0));
   var m=c.Columns;int headerAt=-1;List<string>? header=null;
   for(int i=0;i<Math.Min(lines.Count,30);i++){if(lines[i].Trim().Length==0)continue;var f=Split(lines[i],delim).Select(x=>x.Trim()).ToList();if(f.Any(x=>x.Equals(m.Cmp1,StringComparison.OrdinalIgnoreCase))&&f.Any(x=>x.Equals(m.WireHdl1,StringComparison.OrdinalIgnoreCase)||x.Equals(m.Cmp2,StringComparison.OrdinalIgnoreCase))){headerAt=i;header=f;break;}}
   if(header is null){if(!c.HasHeader)throw new InvalidOperationException("reportFile.hasHeader is false, but a header row is required to map the columns. Save the report with a header line, or map the columns in the config.");

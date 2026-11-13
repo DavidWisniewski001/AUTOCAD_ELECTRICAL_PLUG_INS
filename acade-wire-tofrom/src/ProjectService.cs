@@ -10,8 +10,14 @@ public static class ProjectService {
   return p;}
  static List<string> ReadLines(string path){byte[] b=File.ReadAllBytes(path);string text;if(b.Length>=3&&b[0]==0xEF&&b[1]==0xBB&&b[2]==0xBF)text=new UTF8Encoding(true).GetString(b,3,b.Length-3);else if(b.Length>=2&&b[0]==0xFF&&b[1]==0xFE)text=new UnicodeEncoding(false,true).GetString(b,2,b.Length-2);else{try{text=new UTF8Encoding(false,true).GetString(b);}catch(DecoderFallbackException){text=Encoding.Latin1.GetString(b);}}return text.Split('\n').ToList();}
  public static string FullPath(string wdpPath,string entry){string folder=Path.GetDirectoryName(wdpPath)??"";try{return Path.IsPathRooted(entry)?Path.GetFullPath(entry):Path.GetFullPath(Path.Combine(folder,entry));}catch{return entry;}}
- public static string DatabasePath(ProjectInfo p,DatabaseConfig d,string fromLisp){if(fromLisp.Trim().Length>0&&File.Exists(fromLisp.Trim()))return Path.GetFullPath(fromLisp.Trim());
-  string pattern=d.PathPattern.Replace("{FOLDER}",p.Folder,StringComparison.OrdinalIgnoreCase).Replace("{PROJECT}",p.Name,StringComparison.OrdinalIgnoreCase);try{return Path.GetFullPath(pattern);}catch{return pattern;}}
+ // The scratch database: the path AutoCAD Electrical reported wins when the file exists; then database.pathPattern; then
+ // <project>.mdb in each of database.searchFolders, newest file first. Nothing found: the pattern path (reported as missing).
+ public static string DatabasePath(ProjectInfo p,DatabaseConfig d,string fromLisp)=>DatabasePath(p,d,fromLisp,null);
+ public static string DatabasePath(ProjectInfo p,DatabaseConfig d,string fromLisp,List<string>? searched){if(fromLisp.Trim().Length>0&&File.Exists(fromLisp.Trim()))return Path.GetFullPath(fromLisp.Trim());
+  string pattern=Expand(d.PathPattern,p);try{pattern=Path.GetFullPath(pattern);}catch{}searched?.Add(pattern);if(File.Exists(pattern))return pattern;
+  var found=new List<string>();foreach(string raw in d.SearchFolders){string folder;try{folder=Path.GetFullPath(Expand(raw,p));}catch{continue;}if(folder.Length==0)continue;string candidate=Path.Combine(folder,p.Name+".mdb");if(searched is not null&&!searched.Contains(candidate,StringComparer.OrdinalIgnoreCase))searched.Add(candidate);if(File.Exists(candidate))found.Add(candidate);}
+  return found.Count>0?found.OrderByDescending(File.GetLastWriteTime).First():pattern;}
+ public static string Expand(string text,ProjectInfo p)=>text.Replace("{FOLDER}",p.Folder,StringComparison.OrdinalIgnoreCase).Replace("{PROJECT}",p.Name,StringComparison.OrdinalIgnoreCase).Replace("{TEMP}",Path.GetTempPath().TrimEnd('\\'),StringComparison.OrdinalIgnoreCase).Replace("{LOCALAPPDATA}",Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),StringComparison.OrdinalIgnoreCase).Replace("{APPDATA}",Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),StringComparison.OrdinalIgnoreCase);
  public static string OutputFolder(ProjectInfo p,CsvConfig c)=>Path.IsPathRooted(c.OutputFolder)?c.OutputFolder:Path.Combine(p.Folder,c.OutputFolder.Trim().Length==0?"LSE_ToFrom":c.OutputFolder);
  public static string OutputFile(ProjectInfo p,CsvConfig c,string pattern)=>Path.Combine(OutputFolder(p,c),pattern.Replace("{PROJECT}",p.Name,StringComparison.OrdinalIgnoreCase).Replace("{DATE}",DateTime.Now.ToString("yyyyMMdd"),StringComparison.OrdinalIgnoreCase));
 }
