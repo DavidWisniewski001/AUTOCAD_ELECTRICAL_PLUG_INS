@@ -13,7 +13,6 @@ public sealed class ToFromForm : Form
     private ToFromConfig? config;
     private HostBridge? bridge;
     private RunPlan? plan;
-    private bool loadingGrid;
 
     private readonly ComboBox projectBox = new() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDown };
     private readonly Button browseButton = new() { Text = "Browse...", Dock = DockStyle.Fill };
@@ -60,7 +59,7 @@ public sealed class ToFromForm : Form
         this.scratchPath = scratchPath;
         this.currentDrawing = currentDrawing;
         this.refreshNote = refreshNote;
-        Text = "LSE_ToFrom: true To/From wire identifiers";
+        Text = BuildInfo.Title("true To/From wire identifiers");
         StartPosition = FormStartPosition.CenterParent;
         Size = new Size(1280, 780);
         MinimumSize = new Size(960, 580);
@@ -80,13 +79,19 @@ public sealed class ToFromForm : Form
         Shown += (_, _) =>
         {
             LoadConfig();
-            if (projectBox.Text.Trim().Length > 0 && File.Exists(projectBox.Text.Trim()))
+            bool projectReady = projectBox.Text.Trim().Length > 0 && File.Exists(projectBox.Text.Trim());
+            bool sourceReady = reportRadio.Checked ? File.Exists(reportBox.Text.Trim()) : config is not null && config.Database.WireSql.Trim().Length > 0;
+            if (projectReady && sourceReady)
             {
                 Plan();
             }
-            else
+            else if (!projectReady)
             {
                 Status(activeProject.Length == 0 ? "No active project was detected. Browse to a project .wdp and press Plan." : "Press Plan.");
+            }
+            else if (reportRadio.Checked)
+            {
+                Status("Pick the saved Wire From/To report file (Browse...), then press Plan.");
             }
         };
     }
@@ -142,31 +147,29 @@ public sealed class ToFromForm : Form
         root.Controls.Add(header, 0, 0);
         root.Controls.Add(new Label { Text = "1 Pick the project and data source  2 Plan  3 Tick the labels to write  4 Apply ticked (closed drawings are backed up; open ones must be saved by you)", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.FromArgb(80, 80, 80) }, 0, 1);
 
-        AddColumn(new DataGridViewCheckBoxColumn { HeaderText = "Apply?", Width = 60, Name = "Apply" });
-        AddColumn(new DataGridViewTextBoxColumn { HeaderText = "Drawing", Width = 190, ReadOnly = true });
-        AddColumn(new DataGridViewTextBoxColumn { HeaderText = "Change", Width = 130, ReadOnly = true });
-        AddColumn(new DataGridViewTextBoxColumn { HeaderText = "Wire no", Width = 80, ReadOnly = true });
-        AddColumn(new DataGridViewTextBoxColumn { HeaderText = "Label", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 30, ReadOnly = true });
-        AddColumn(new DataGridViewTextBoxColumn { HeaderText = "Drawing has", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 25, ReadOnly = true });
-        AddColumn(new DataGridViewTextBoxColumn { HeaderText = "Key", Width = 110, ReadOnly = true });
-        AddColumn(new DataGridViewTextBoxColumn { HeaderText = "Note", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 45, ReadOnly = true, DefaultCellStyle = new DataGridViewCellStyle { WrapMode = DataGridViewTriState.True } });
-        grid.CurrentCellDirtyStateChanged += (_, _) =>
+        GridService.AddColumns(grid);
+        grid.CellClick += (_, e) =>
         {
-            if (grid.IsCurrentCellDirty)
-            {
-                grid.CommitEdit(DataGridViewDataErrorContexts.Commit);
-            }
-        };
-        grid.CellValueChanged += (_, e) =>
-        {
-            if (loadingGrid || e.RowIndex < 0 || e.ColumnIndex != 0 || grid.Rows[e.RowIndex].Tag is not LabelChange change)
+            if (e.RowIndex < 0)
             {
                 return;
             }
 
-            change.Selected = grid.Rows[e.RowIndex].Cells[0].Value is true;
-            UpdateSummary();
+            if (e.ColumnIndex == 0 || GridService.IsNoteRow(grid, e.RowIndex))
+            {
+                ToggleRow(e.RowIndex);
+            }
         };
+        grid.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode == Keys.Space && grid.CurrentRow is not null)
+            {
+                ToggleRow(grid.CurrentRow.Index);
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+        };
+        grid.CellPainting += (_, e) => GridService.PaintCell(grid, e);
         root.Controls.Add(grid, 0, 2);
 
         var gridButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
@@ -279,12 +282,6 @@ public sealed class ToFromForm : Form
         tips.SetToolTip(closeButton, "Close this window.");
     }
 
-    private void AddColumn(DataGridViewColumn column)
-    {
-        column.SortMode = DataGridViewColumnSortMode.NotSortable;
-        grid.Columns.Add(column);
-    }
-
     private void LoadConfig()
     {
         try
@@ -375,47 +372,21 @@ public sealed class ToFromForm : Form
 
     private void FillGrid()
     {
-        loadingGrid = true;
-        try
+        GridService.Fill(grid, plan, showKeepBox.Checked);
+        UpdateSummary();
+    }
+
+    private void ToggleRow(int rowIndex)
+    {
+        if (GridService.IsNoteRow(grid, rowIndex))
         {
-            grid.Rows.Clear();
-            if (plan is null)
-            {
-                return;
-            }
-
-            foreach (DrawingPlan drawing in plan.Drawings)
-            {
-                IEnumerable<LabelChange> changes = drawing.Changes.OrderBy(c => c.Action switch { LabelAction.Insert => 0, LabelAction.Update => 1, LabelAction.Delete => 2, LabelAction.Skip => 3, _ => 4 }).ThenBy(c => c.Key, StringComparer.OrdinalIgnoreCase);
-                if (drawing.SkipReason.Length > 0)
-                {
-                    int skippedRow = grid.Rows.Add(false, drawing.Name, "Drawing skipped", "", "", "", "", drawing.SkipReason);
-                    grid.Rows[skippedRow].Cells[0].ReadOnly = true;
-                    grid.Rows[skippedRow].DefaultCellStyle.BackColor = Color.FromArgb(255, 240, 220);
-                }
-
-                foreach (LabelChange change in changes)
-                {
-                    if (!showKeepBox.Checked && !change.Writes)
-                    {
-                        continue;
-                    }
-
-                    int row = grid.Rows.Add(change.Selected && change.Writes && drawing.SkipReason.Length == 0, drawing.Name, change.ActionText, change.End?.Row.WireNo ?? change.Node, change.Text, change.Existing, change.Key, change.Note + (drawing.State.OpenInEditor && change.Writes ? (change.Note.Length > 0 ? "; " : "") + "open in the editor: written in the session, not saved" : ""));
-                    grid.Rows[row].Tag = change;
-                    if (!change.Writes || drawing.SkipReason.Length > 0)
-                    {
-                        grid.Rows[row].Cells[0].ReadOnly = true;
-                        grid.Rows[row].DefaultCellStyle.ForeColor = Color.FromArgb(110, 110, 110);
-                    }
-                }
-            }
-
-            UpdateSummary();
+            Status(GridService.Explain(grid, rowIndex));
+            return;
         }
-        finally
+
+        if (GridService.Toggle(grid, rowIndex) is not null)
         {
-            loadingGrid = false;
+            UpdateSummary();
         }
     }
 

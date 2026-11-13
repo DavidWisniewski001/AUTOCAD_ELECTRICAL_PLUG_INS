@@ -1,10 +1,17 @@
 using LSE.AutoCADElectrical.WireToFrom;
+using System.Drawing;
 using System.Text;
+using System.Windows.Forms;
 
-// LSE_ToFrom smoke test. Runs without AutoCAD: the drawing side is faked through HostBridge delegates.
+// LSE_ToFrom smoke test. Runs without AutoCAD: the drawing side is faked through HostBridge delegates; the plan grid is a real DataGridView.
 int passed = 0, failed = 0;
 void Check(bool ok, string name) { if (ok) { passed++; Console.WriteLine("PASS " + name); } else { failed++; Console.WriteLine("FAIL " + name); } }
 void Throws(Action a, string contains, string name) { try { a(); Check(false, name + " (no exception)"); } catch (Exception ex) { bool ok = ex.Message.Contains(contains, StringComparison.OrdinalIgnoreCase); Check(ok, name + (ok ? "" : ": " + ex.Message)); } }
+DataGridViewCellPaintingEventArgs PaintArgs(DataGridView grid, Graphics g, int rowIndex)
+{
+    var bounds = new Rectangle(0, 0, 60, 22);
+    return new DataGridViewCellPaintingEventArgs(grid, g, bounds, bounds, rowIndex, 0, DataGridViewElementStates.Visible, false, false, "", grid.Rows[rowIndex].Cells[0].InheritedStyle, new DataGridViewAdvancedBorderStyle(), DataGridViewPaintParts.All);
+}
 
 string root = args.Length > 0 ? args[0] : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
 string configPath = Path.Combine(root, "config", "tofrom.config.json");
@@ -289,6 +296,87 @@ RunPlan Plan(bool annotate = true, string? only = null)
     Check(logPath.StartsWith(SettingsService.LogFolder, StringComparison.OrdinalIgnoreCase) && Path.GetFileName(logPath).StartsWith("Error_") && logText.Contains("Step: Plan") && logText.Contains("Sample failure"), "ErrorService writes Error_<stamp>.txt with step and exception");
     Check(HelpText.Main.Length > 800 && HelpText.Main.Contains("LSETOFROMDISCOVER") && HelpText.Fix(HelpText.Main).Contains("\r\n") && !HelpText.Fix(HelpText.Main).Replace("\r\n", "").Contains('\n'), "help text present with CRLF line endings");
     Check(ScratchDb.SuggestSql(new SchemaTable { Name = "WFROMTO" }) == "SELECT * FROM [WFROMTO]" && ScratchDb.Describe(new List<SchemaTable> { new() { Name = "T", Columns = { "CMP1", "CMP2", "WIRENO" }, Score = 3 } }, config.Database).Contains("CANDIDATE T"), "discovery text marks candidate tables");
+}
+
+// 8. Build tag, the plan grid on a real DataGridView, database search folders, settings upgrade
+{
+    Check(System.Text.RegularExpressions.Regex.IsMatch(BuildInfo.Release, @"^\d{4}-\d{2}-\d{2}-r\d+$") && BuildInfo.Title("x").EndsWith("[" + BuildInfo.Release + "]") && BuildInfo.Label.Contains(BuildInfo.Release), "build tag " + BuildInfo.Release + " in titles and label");
+    string tagLog = ErrorService.Log("Grid", new InvalidOperationException("tag check"));
+    Check(tagLog.Length > 0 && File.ReadAllText(tagLog).Contains("Build: " + BuildInfo.Label), "error log names the build");
+
+    // one update (103 pin changed), one stale label to delete, keeps for the rest, one locked drawing with skip rows
+    File.WriteAllText(reportFile, File.ReadAllText(reportFile, Encoding.Latin1).Replace("103,S1,5,K5,A2", "103,S1,6,K5,A2"), Encoding.Latin1);
+    fakeLabels[Path.Combine(projectFolder, dwgs[0])].Add(new ExistingLabel { Handle = "OLD2", Key = "8888/1", Text = "OLD", Block = "TOFROM_LBL_H", Layer = "LSE_TOFROM" });
+    lockedDrawings.Add(Path.Combine(projectFolder, dwgs[1]));
+    var plan = Plan();
+    Check(plan.AllChanges.Count(c => c.Action == LabelAction.Update) == 1 && plan.AllChanges.Count(c => c.Action == LabelAction.Delete) == 1 && plan.AllChanges.Any(c => c.Action == LabelAction.Keep) && plan.Drawings.Count(d => d.SkipReason.Length > 0) == 1, "grid fixture: update, delete, keeps and a locked drawing");
+
+    using var grid = new DataGridView { AutoGenerateColumns = false, AllowUserToAddRows = false };
+    GridService.AddColumns(grid);
+    Check(grid.Columns.Count == 8 && grid.Columns[0] is DataGridViewCheckBoxColumn && grid.Columns[0].ReadOnly, "grid: 8 columns, Apply? first and read-only");
+    int rows = GridService.Fill(grid, plan, false);
+    int skippedDrawings = plan.Drawings.Count(d => d.SkipReason.Length > 0);
+    Check(rows == plan.Writable + skippedDrawings && plan.Writable > 0 && grid.Rows.Cast<DataGridViewRow>().All(r => r.Tag is LabelChange { Writes: true } or DrawingPlan), "grid without unchanged rows lists the writable changes plus the skipped-drawing warning: " + rows);
+    int all = GridService.Fill(grid, plan, true);
+    int expected = plan.Drawings.Sum(d => d.Changes.Count) + plan.Drawings.Count(d => d.SkipReason.Length > 0);
+    Check(all == expected && all > rows && grid.Rows.Count == all, "grid with unchanged rows lists every change plus one row per skipped drawing: " + all);
+    DataGridViewRow updateRow = grid.Rows.Cast<DataGridViewRow>().First(r => r.Tag is LabelChange { Action: LabelAction.Update });
+    var change = (LabelChange)updateRow.Tag!;
+    bool wasSelected = change.Selected;
+    Check(updateRow.Cells[0].Value is bool shown && shown == wasSelected && !updateRow.ReadOnly && updateRow.Cells[0].ReadOnly, "update row shows its tick, row writable, cell handled by the form");
+    LabelChange? toggled = GridService.Toggle(grid, updateRow.Index);
+    Check(toggled == change && change.Selected == !wasSelected && updateRow.Cells[0].Value is bool after && after == !wasSelected, "toggle flips Selected and the cell");
+    GridService.Toggle(grid, updateRow.Index);
+    Check(change.Selected == wasSelected && plan.Selected == plan.AllChanges.Count(c => c.Writes && c.Selected), "toggle again restores; plan.Selected follows");
+    DataGridViewRow keepRow = grid.Rows.Cast<DataGridViewRow>().First(r => r.Tag is LabelChange { Action: LabelAction.Keep });
+    Check(keepRow.ReadOnly && GridService.IsNoteRow(grid, keepRow.Index) && GridService.Toggle(grid, keepRow.Index) is null && keepRow.Cells[0].Value is false && keepRow.DefaultCellStyle.ForeColor == GridService.NoteForeColor, "keep row is a note: read-only, grey, refuses toggle");
+    Check(GridService.Explain(grid, keepRow.Index).StartsWith("Keep:"), "keep row explanation: " + GridService.Explain(grid, keepRow.Index));
+    DataGridViewRow skippedDrawingRow = grid.Rows.Cast<DataGridViewRow>().First(r => r.Tag is DrawingPlan);
+    Check(skippedDrawingRow.ReadOnly && GridService.IsNoteRow(grid, skippedDrawingRow.Index) && GridService.Explain(grid, skippedDrawingRow.Index).Contains("locked") && skippedDrawingRow.DefaultCellStyle.BackColor == GridService.SkippedBackColor, "skipped drawing row is a note naming the lock");
+    DataGridViewRow skipRow = grid.Rows.Cast<DataGridViewRow>().First(r => r.Tag is LabelChange { Action: LabelAction.Skip });
+    Check(GridService.IsNoteRow(grid, skipRow.Index) && GridService.Toggle(grid, skipRow.Index) is null && GridService.Explain(grid, skipRow.Index).StartsWith("Skip:"), "skip row is a note");
+    Check(!GridService.IsNoteRow(grid, -1) && GridService.Toggle(grid, grid.Rows.Count) is null && GridService.Explain(grid, 99) == "", "out of range refused");
+    using (var bitmap = new Bitmap(60, 22))
+    using (var graphics = Graphics.FromImage(bitmap))
+    {
+        DataGridViewCellPaintingEventArgs notePaint = PaintArgs(grid, graphics, keepRow.Index);
+        GridService.PaintCell(grid, notePaint);
+        DataGridViewCellPaintingEventArgs boxPaint = PaintArgs(grid, graphics, updateRow.Index);
+        GridService.PaintCell(grid, boxPaint);
+        Check(notePaint.Handled && !boxPaint.Handled, "note rows paint the word, change rows keep the box");
+    }
+
+    Check(grid.Rows.Cast<DataGridViewRow>().All(r => r.Cells[0].ReadOnly), "every Apply? cell is read-only: the grid's own edit cycle is never used");
+    Check(GridService.Fill(grid, null, true) == 0 && grid.Rows.Count == 0, "null plan empties the grid");
+    lockedDrawings.Clear();
+
+    // database search folders
+    var dcfg = new DatabaseConfig { PathPattern = Path.Combine(work, "nowhere", "{PROJECT}.mdb"), SearchFolders = new() { Path.Combine(work, "s1"), Path.Combine(work, "s2"), "{TEMP}" } };
+    Directory.CreateDirectory(Path.Combine(work, "s1"));
+    Directory.CreateDirectory(Path.Combine(work, "s2"));
+    var searched = new List<string>();
+    Check(ProjectService.DatabasePath(project, dcfg, "", searched) == Path.GetFullPath(Path.Combine(work, "nowhere", "123456-R.mdb")) && searched.Count == 4, "no database anywhere: pattern path returned, 4 paths looked at");
+    File.WriteAllText(Path.Combine(work, "s1", "123456-R.mdb"), "a");
+    File.WriteAllText(Path.Combine(work, "s2", "123456-R.mdb"), "b");
+    File.SetLastWriteTime(Path.Combine(work, "s1", "123456-R.mdb"), DateTime.Now.AddMinutes(-5));
+    Check(ProjectService.DatabasePath(project, dcfg, "") == Path.Combine(work, "s2", "123456-R.mdb"), "newest file among the search folders wins");
+    Directory.CreateDirectory(Path.Combine(work, "nowhere"));
+    File.WriteAllText(Path.Combine(work, "nowhere", "123456-R.mdb"), "p");
+    Check(ProjectService.DatabasePath(project, dcfg, "") == Path.GetFullPath(Path.Combine(work, "nowhere", "123456-R.mdb")), "pattern path wins when it exists");
+    Check(ProjectService.Expand("{TEMP}|{PROJECT}|{FOLDER}", project) == Path.GetTempPath().TrimEnd('\\') + "|123456-R|" + projectFolder, "token expansion");
+    Check(ConfigService.Load(configPath).Database.SearchFolders.SequenceEqual(new[] { "{FOLDER}", "{TEMP}", "{LOCALAPPDATA}\\Temp" }), "config ships three search folders");
+
+    // settings upgrade of the first cut's bridge expressions
+    var legacy = new AppSettings { ActiveProjectLisp = AppSettings.LegacyActiveProjectLisp, ScratchDbLisp = AppSettings.LegacyScratchDbLisp };
+    SettingsService.Upgrade(legacy);
+    Check(legacy.ActiveProjectLisp == AppSettings.DefaultActiveProjectLisp && legacy.ScratchDbLisp == AppSettings.DefaultScratchDbLisp, "first-cut bridge expressions are upgraded to the multi-candidate defaults");
+    var custom = new AppSettings { ActiveProjectLisp = "(setvar \"USERS1\" \"custom\")", ScratchDbLisp = "" };
+    SettingsService.Upgrade(custom);
+    Check(custom.ActiveProjectLisp == "(setvar \"USERS1\" \"custom\")" && custom.ScratchDbLisp == AppSettings.DefaultScratchDbLisp, "a customised expression is kept; a blank one gets the default");
+    bool balanced = AppSettings.DefaultActiveProjectLisp.Count(ch => ch == '(') == AppSettings.DefaultActiveProjectLisp.Count(ch => ch == ')') && AppSettings.DefaultScratchDbLisp.Count(ch => ch == '(') == AppSettings.DefaultScratchDbLisp.Count(ch => ch == ')');
+    Check(balanced && AppSettings.DefaultActiveProjectLisp.Contains("GBL_wd_prj") && AppSettings.DefaultActiveProjectLisp.Contains("boundp 'ace_getactiveproject") && AppSettings.DefaultScratchDbLisp.Contains("wd_mdb_get_proj_scratch_dbnam"), "default bridge expressions are balanced and name every candidate");
+    string diag = DiagnosticsService.BuildReport();
+    Check(diag.Contains("Build: " + BuildInfo.Release) && diag.Contains("not run (outside AutoCAD)") && diag.Contains("search folders"), "diagnostics name the build, the bridge state and the search folders");
 }
 
 Console.WriteLine();

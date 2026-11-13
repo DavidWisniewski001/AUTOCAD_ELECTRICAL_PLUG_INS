@@ -58,8 +58,12 @@
   // read-only; only SELECT statements are accepted. columns maps the roles the tool needs to the column names the query returns
   // (* = required). drawingSql, if set, must return the drawing index in its first column and the file name in its second;
   // without it DWGIX is taken as the 1-based position in the .wdp drawing list (drawingIndexBase).
+  // Where the file is: the path AutoCAD Electrical reports (scratch database LISP) wins when it exists, then pathPattern, then
+  // {PROJECT}.mdb in each of searchFolders (newest first). Tokens: {FOLDER} project folder, {PROJECT} project name, {TEMP},
+  // {LOCALAPPDATA}, {APPDATA}. LSETOFROMDISCOVER and LSETOFROMDIAG list every path that was looked at.
   "database": {
     "pathPattern": "{FOLDER}\\{PROJECT}.mdb",
+    "searchFolders": [ "{FOLDER}", "{TEMP}", "{LOCALAPPDATA}\\Temp" ],
     "providers": [ "Microsoft.ACE.OLEDB.16.0", "Microsoft.ACE.OLEDB.12.0", "Microsoft.Jet.OLEDB.4.0" ],
     "wireSql": "",
     "drawingSql": "",

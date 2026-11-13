@@ -2,9 +2,14 @@ namespace LSE.AutoCADElectrical.WireToFrom;
 public sealed class AppSettings {
  public string ConfigPath{get;set;}=""; public string BackupFolderName{get;set;}="_LSE_TOFROM_BACKUP"; public int BackupsToKeep{get;set;}=10;
  public string DataSource{get;set;}="scratch"; public string LastReportFile{get;set;}=""; public string StalePolicy{get;set;}="warn"; public bool ShowReportAfterRun{get;set;}=true; public bool CurrentDrawingOnly{get;set;}
- public string ActiveProjectLisp{get;set;}="(setvar \"USERS1\" (if (and (boundp 'ace_getactiveproject) (ace_getactiveproject)) (ace_getactiveproject) \"\"))";
- public string ScratchDbLisp{get;set;}="(setvar \"USERS1\" (if (boundp 'c:wd_mdb_get_proj_scratch_dbnam) (progn (setq lse_x (c:wd_mdb_get_proj_scratch_dbnam)) (if (= (type lse_x) 'STR) lse_x \"\")) \"\"))";
+ public string ActiveProjectLisp{get;set;}=DefaultActiveProjectLisp;
+ public string ScratchDbLisp{get;set;}=DefaultScratchDbLisp;
  public string RefreshDbLisp{get;set;}="";
+ // Each candidate function is guarded by boundp and a string type check, so an unknown name in this release is skipped, not an error.
+ public const string DefaultActiveProjectLisp="(setvar \"USERS1\" (cond ((and (boundp 'ace_getactiveproject) (= (type (setq lse_p (ace_getactiveproject))) 'STR)) lse_p) ((and (boundp 'c:ace_getactiveproject) (= (type (setq lse_p (c:ace_getactiveproject))) 'STR)) lse_p) ((and (boundp 'wd_proj_wdp_fnam) (= (type (setq lse_p (wd_proj_wdp_fnam))) 'STR)) lse_p) ((and (boundp 'c:wd_proj_wdp_fnam) (= (type (setq lse_p (c:wd_proj_wdp_fnam))) 'STR)) lse_p) ((and (boundp 'GBL_wd_prj) (= (type GBL_wd_prj) 'STR)) GBL_wd_prj) (t \"\")))";
+ public const string DefaultScratchDbLisp="(setvar \"USERS1\" (cond ((and (boundp 'c:wd_mdb_get_proj_scratch_dbnam) (= (type (setq lse_x (c:wd_mdb_get_proj_scratch_dbnam))) 'STR)) lse_x) ((and (boundp 'wd_mdb_get_proj_scratch_dbnam) (= (type (setq lse_x (wd_mdb_get_proj_scratch_dbnam))) 'STR)) lse_x) (t \"\")))";
+ public const string LegacyActiveProjectLisp="(setvar \"USERS1\" (if (and (boundp 'ace_getactiveproject) (ace_getactiveproject)) (ace_getactiveproject) \"\"))";
+ public const string LegacyScratchDbLisp="(setvar \"USERS1\" (if (boundp 'c:wd_mdb_get_proj_scratch_dbnam) (progn (setq lse_x (c:wd_mdb_get_proj_scratch_dbnam)) (if (= (type lse_x) 'STR) lse_x \"\")) \"\"))";
  public List<string> RecentProjects{get;set;}=new();
 }
 public sealed class ToFromConfig {
@@ -25,6 +30,7 @@ public sealed class CsvConfig {
 }
 public sealed class DatabaseConfig {
  public string PathPattern{get;set;}=@"{FOLDER}\{PROJECT}.mdb"; public List<string> Providers{get;set;}=new(){"Microsoft.ACE.OLEDB.16.0","Microsoft.ACE.OLEDB.12.0","Microsoft.Jet.OLEDB.4.0"};
+ public List<string> SearchFolders{get;set;}=new(){"{FOLDER}","{TEMP}","{LOCALAPPDATA}\\Temp"};
  public string WireSql{get;set;}=""; public string DrawingSql{get;set;}=""; public int DrawingIndexBase{get;set;}=1; public string Confidence{get;set;}="unverified"; public string Note{get;set;}="";
  public ColumnMap Columns{get;set;}=new(); public List<string> CandidateColumns{get;set;}=new(){"WIRENO","CMP1","PIN1","CMP2","PIN2","WIREHDL1","WIREHDL2","CMPHDL1","CMPHDL2","DWGIX1","DWGIX2"};
 }
