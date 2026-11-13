@@ -227,7 +227,7 @@ public sealed class ToFromForm : Form
             }
         };
         planButton.Click += (_, _) => Plan();
-        tickRecommendedButton.Click += (_, _) => Tick(c => c.Writes && c.Action != LabelAction.Delete || c.Action == LabelAction.Delete && c.Note.Contains("duplicate", StringComparison.OrdinalIgnoreCase) || c.Action == LabelAction.Delete && config is not null && config.Schematic.DeleteStale);
+        tickRecommendedButton.Click += (_, _) => Tick(c => c.Action is LabelAction.Insert or LabelAction.Update || c.Action == LabelAction.Delete && c.Note.Contains("duplicate", StringComparison.OrdinalIgnoreCase));
         tickAllButton.Click += (_, _) => Tick(c => c.Writes);
         untickAllButton.Click += (_, _) => Tick(_ => false);
         showKeepBox.CheckedChanged += (_, _) => FillGrid();
@@ -259,6 +259,10 @@ public sealed class ToFromForm : Form
         };
         closeButton.Click += (_, _) => Close();
         CancelButton = closeButton;
+        annotateBox.CheckedChanged += (_, _) => InvalidatePlan("Annotate drawings changed");
+        currentOnlyBox.CheckedChanged += (_, _) => InvalidatePlan("Current drawing only changed");
+        databaseRadio.CheckedChanged += (_, _) => InvalidatePlan("Data source changed");
+        exportBox.CheckedChanged += (_, _) => UpdateSummary();
 
         tips.SetToolTip(projectBox, "The AutoCAD Electrical project (.wdp) whose wires get identifiers. Recent projects are in the list.");
         tips.SetToolTip(browseButton, "Pick a project .wdp file.");
@@ -271,8 +275,8 @@ public sealed class ToFromForm : Form
         tips.SetToolTip(currentOnlyBox, "Only the drawing you are in is read and written. The CSV still covers the whole project.");
         tips.SetToolTip(exportBox, "Write the label CSV (one row per wire end) and the report CSV (one row per wire) into <project>\\LSE_ToFrom.");
         tips.SetToolTip(planButton, "Read the data and the drawings and list every label change. Nothing is written until you press Apply ticked.");
-        tips.SetToolTip(tickRecommendedButton, "Tick inserts, updates and the deletion of stale or duplicate labels.");
-        tips.SetToolTip(tickAllButton, "Tick every change that can be written.");
+        tips.SetToolTip(tickRecommendedButton, "Tick inserts, updates and the removal of duplicate labels. Stale-label deletions are left for you to decide.");
+        tips.SetToolTip(tickAllButton, "Tick every change that can be written, including stale-label deletions.");
         tips.SetToolTip(untickAllButton, "Clear all ticks.");
         tips.SetToolTip(showKeepBox, "Also list labels that are already correct (Keep) and rows that cannot be written (Skip).");
         tips.SetToolTip(reportButton, "Show the plan as text, which you can save.");
@@ -374,6 +378,20 @@ public sealed class ToFromForm : Form
     {
         GridService.Fill(grid, plan, showKeepBox.Checked);
         UpdateSummary();
+    }
+
+    private void InvalidatePlan(string reason)
+    {
+        if (plan is null)
+        {
+            return;
+        }
+
+        plan = null;
+        grid.Rows.Clear();
+        summaryLabel.Text = "";
+        applyButton.Enabled = false;
+        Status(reason + ": the plan no longer matches the options. Press Plan again.");
     }
 
     private void ToggleRow(int rowIndex)

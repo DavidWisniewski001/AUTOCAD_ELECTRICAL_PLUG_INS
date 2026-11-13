@@ -17,6 +17,11 @@ public static class ConfigService {
  public static ToFromConfig Load(string path){ToFromConfig c;if(!File.Exists(path))c=new();else c=JsonSerializer.Deserialize<ToFromConfig>(File.ReadAllText(path),SettingsService.Json)??throw new InvalidOperationException("The LSE_ToFrom config JSON is empty: "+path);
   Validate(c,path);c.Source=File.Exists(path)?path:"(built-in defaults; "+path+" not found)";return c;}
  public static void Save(ToFromConfig c,string path){Validate(c,path);string src=c.Source;c.Source="";try{Directory.CreateDirectory(Path.GetDirectoryName(path)??"");string t=path+".tmp";File.WriteAllText(t,JsonSerializer.Serialize(c,SettingsService.Json));File.Move(t,path,true);}finally{c.Source=src.Length>0?src:path;}}
+ // Replaces the string value of each named key in the file text itself, so comments and key casing survive (Save rewrites
+ // the whole file without them). Each key must occur as "key": "..." exactly once; otherwise false, and the caller falls back to Save.
+ public static bool SetStringValues(string path,params (string Key,string Value)[] values){if(!File.Exists(path))return false;string text=File.ReadAllText(path);
+  foreach(var (key,value) in values){var m=System.Text.RegularExpressions.Regex.Matches(text,"\""+System.Text.RegularExpressions.Regex.Escape(key)+"\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");if(m.Count!=1)return false;var g=m[0].Groups[1];string enc=JsonSerializer.Serialize(value);text=text[..g.Index]+enc[1..^1]+text[(g.Index+g.Length)..];}
+  string t=path+".tmp";File.WriteAllText(t,text);File.Move(t,path,true);return true;}
  public static void Validate(ToFromConfig c,string path){
   if(c.Format.Trim().Length==0)throw new InvalidOperationException("format is empty in "+path);if(c.FarEndFormat.Trim().Length==0)c.FarEndFormat=c.Format;if(c.TagPinFormat.Trim().Length==0)c.TagPinFormat="{TAG}:{PIN}";
   var sc=c.Schematic;if(sc.LabelLayer.Trim().Length==0)throw new InvalidOperationException("schematic.labelLayer is empty in "+path);if(sc.LabelLayer.IndexOfAny(new[]{'<','>','/','\\','"',':',';','?','*','|',',','=','`'})>=0)throw new InvalidOperationException("schematic.labelLayer '"+sc.LabelLayer+"' is not a valid AutoCAD layer name.");
@@ -25,7 +30,7 @@ public static class ConfigService {
   if(sc.TextHeight<=0)throw new InvalidOperationException("schematic.textHeight must be greater than 0.");if(sc.CollisionTries<0)sc.CollisionTries=0;
   if(c.Csv.Delimiter.Length==0)c.Csv.Delimiter=",";if(c.Csv.Delimiter.Equals("\\t",StringComparison.Ordinal)||c.Csv.Delimiter.Equals("tab",StringComparison.OrdinalIgnoreCase))c.Csv.Delimiter="\t";
   if(!c.Csv.Encoding.Equals("ansi",StringComparison.OrdinalIgnoreCase)&&!c.Csv.Encoding.Equals("utf8",StringComparison.OrdinalIgnoreCase))c.Csv.Encoding="utf8bom";
-  if(c.Database.Providers.Count==0)c.Database.Providers=new(){"Microsoft.ACE.OLEDB.16.0","Microsoft.ACE.OLEDB.12.0"};if(c.Database.PathPattern.Trim().Length==0)c.Database.PathPattern=@"{FOLDER}\{PROJECT}.mdb";
+  if(c.Database.Providers.Count==0)c.Database.Providers=new(){"Microsoft.ACE.OLEDB.16.0","Microsoft.ACE.OLEDB.12.0","Microsoft.Jet.OLEDB.4.0"};if(c.Database.PathPattern.Trim().Length==0)c.Database.PathPattern=@"{FOLDER}\{PROJECT}.mdb";
   string sql=c.Database.WireSql.Trim();if(sql.Length>0&&!sql.StartsWith("SELECT",StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("database.wireSql must be a SELECT statement; the scratch database is never written.");
   string dsql=c.Database.DrawingSql.Trim();if(dsql.Length>0&&!dsql.StartsWith("SELECT",StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("database.drawingSql must be a SELECT statement.");
   foreach(var (role,col,req) in c.Database.Columns.All())if(req&&col.Trim().Length==0)throw new InvalidOperationException("database.columns."+role+" is empty in "+path);}

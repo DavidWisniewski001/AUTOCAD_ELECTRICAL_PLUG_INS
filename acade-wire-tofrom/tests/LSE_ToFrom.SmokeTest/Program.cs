@@ -248,11 +248,21 @@ RunPlan Plan(bool annotate = true, string? only = null)
     plan = Plan();
     string target = Path.Combine(projectFolder, dwgs[0]);
     byte[] before = File.ReadAllBytes(target);
-    File.Delete(Path.Combine(projectFolder, "LSE_ToFrom", "123456-R_tofrom_labels.csv"));
+    string labelsCsv = Path.Combine(projectFolder, "LSE_ToFrom", "123456-R_tofrom_labels.csv");
+    byte[] csvBefore = File.ReadAllBytes(labelsCsv);
     failNextWrite = true;
     Throws(() => RunService.Execute(plan, settings, bridge, true), "simulated drawing failure", "run fails on a drawing error");
     failNextWrite = false;
-    Check(File.ReadAllBytes(target).AsSpan().SequenceEqual(before) && !File.Exists(Path.Combine(projectFolder, "LSE_ToFrom", "123456-R_tofrom_labels.csv")), "rollback restored the drawing and removed nothing it did not create");
+    Check(File.ReadAllBytes(target).AsSpan().SequenceEqual(before) && File.ReadAllBytes(labelsCsv).AsSpan().SequenceEqual(csvBefore), "rollback restored the drawing and left the previous CSV untouched");
+    Check(File.ReadAllText(Path.Combine(projectFolder, "LSE_ToFromReport.txt")).Contains("Status: FAILED (rolled back)"), "failed run appended to the project report");
+    // a run that fails after the drawings were written (the label CSV is open in another program): drawings restored, previous CSV kept
+    byte[] drawingBefore = File.ReadAllBytes(target);
+    using (var holder = new FileStream(labelsCsv, FileMode.Open, FileAccess.Read, FileShare.None))
+    {
+        Throws(() => RunService.Execute(plan, settings, bridge, true), "being used by another process", "a locked label CSV fails the run");
+    }
+
+    Check(File.ReadAllBytes(target).AsSpan().SequenceEqual(drawingBefore) && File.ReadAllBytes(labelsCsv).AsSpan().SequenceEqual(csvBefore) && !File.Exists(labelsCsv + ".tmp"), "after the locked-CSV failure: drawing rolled back, previous CSV intact, no .tmp left");
     Check(Directory.Exists(SettingsService.LogFolder) && Directory.GetFiles(SettingsService.LogFolder, "ToFromRun_*.txt").Length > 0, "failed run logged to the Logs folder");
     int backupsBefore = Directory.GetDirectories(Path.Combine(projectFolder, settings.BackupFolderName)).Length;
     File.SetAttributes(target, FileAttributes.ReadOnly);
@@ -301,6 +311,8 @@ RunPlan Plan(bool annotate = true, string? only = null)
 // 8. Build tag, the plan grid on a real DataGridView, database search folders, settings upgrade
 {
     Check(System.Text.RegularExpressions.Regex.IsMatch(BuildInfo.Release, @"^\d{4}-\d{2}-\d{2}-r\d+$") && BuildInfo.Title("x").EndsWith("[" + BuildInfo.Release + "]") && BuildInfo.Label.Contains(BuildInfo.Release), "build tag " + BuildInfo.Release + " in titles and label");
+    string? informational = System.Diagnostics.FileVersionInfo.GetVersionInfo(typeof(BuildInfo).Assembly.Location).ProductVersion;
+    Check(informational is not null && informational.Contains(BuildInfo.Release) && typeof(BuildInfo).Assembly.GetName().Version?.ToString() == "1.1.0.0", "assembly version 1.1.0 names the build tag: " + informational);
     string tagLog = ErrorService.Log("Grid", new InvalidOperationException("tag check"));
     Check(tagLog.Length > 0 && File.ReadAllText(tagLog).Contains("Build: " + BuildInfo.Label), "error log names the build");
 
@@ -349,6 +361,30 @@ RunPlan Plan(bool annotate = true, string? only = null)
     Check(grid.Rows.Cast<DataGridViewRow>().All(r => r.Cells[0].ReadOnly), "every Apply? cell is read-only: the grid's own edit cycle is never used");
     Check(GridService.Fill(grid, null, true) == 0 && grid.Rows.Count == 0, "null plan empties the grid");
     lockedDrawings.Clear();
+
+    // comment-preserving config update (what discovery writes)
+    string commented = Path.Combine(work, "commented.json");
+    File.WriteAllText(commented, "{\n  // keep me\n  \"format\": \"{FROM}/{TO}\",\n  \"database\": {\n    \"wireSql\": \"\", // trailing note\n    \"confidence\": \"unverified\"\n  }\n}\n");
+    Check(ConfigService.SetStringValues(commented, ("wireSql", "SELECT * FROM [T\"Q]"), ("confidence", "discovered 2026-11-13")), "SetStringValues finds both keys");
+    string commentedText = File.ReadAllText(commented);
+    var commentedConfig = ConfigService.Load(commented);
+    Check(commentedText.Contains("// keep me") && commentedText.Contains("// trailing note") && commentedText.Contains("\"wireSql\"") && commentedConfig.Database.WireSql == "SELECT * FROM [T\"Q]" && commentedConfig.Database.Confidence == "discovered 2026-11-13", "comments kept, values replaced and escaped");
+    Check(!ConfigService.SetStringValues(commented, ("nosuchkey", "x")) && !ConfigService.SetStringValues(Path.Combine(work, "none.json"), ("wireSql", "x")) && File.ReadAllText(commented) == commentedText, "a missing key or file returns false and changes nothing");
+
+    // the word tab as the report delimiter; the provider fallback keeps Jet 4
+    string tabbedWord = Path.Combine(work, "fromto_tabword.txt");
+    File.WriteAllText(tabbedWord, "WIRENO\tCMP1\tPIN1\tCMP2\tPIN2\tWIREHDL1\r\n9\tA\t1\tB\t2\tFF\r\n");
+    Check(ReportImport.Read(tabbedWord, new ReportFileConfig { Delimiter = "tab" }, new List<string>()).Single().Cmp2 == "B", "reportFile.delimiter 'tab' means a tab character");
+    var noProviders = new ToFromConfig();
+    noProviders.Database.Providers.Clear();
+    ConfigService.Validate(noProviders, "x");
+    Check(noProviders.Database.Providers.Count == 3 && noProviders.Database.Providers[2].Contains("Jet"), "empty providers fall back to ACE 16, ACE 12 and Jet 4");
+
+    // the drawing's sheet number reaches the label CSV
+    plan = Plan();
+    RunResult sheetRun = RunService.Execute(plan, settings, bridge, true);
+    string[] sheetLines = File.ReadAllLines(sheetRun.LabelCsv);
+    Check(sheetLines.Length > 1 && sheetLines.Skip(1).Where(l => l.StartsWith(dwgs[0] + ",")).All(l => l.StartsWith(dwgs[0] + ",1,")) && sheetLines.Skip(1).Any(l => l.StartsWith(dwgs[2] + ",4,")), "label CSV Sheet column carries each drawing's sheet number");
 
     // database search folders
     var dcfg = new DatabaseConfig { PathPattern = Path.Combine(work, "nowhere", "{PROJECT}.mdb"), SearchFolders = new() { Path.Combine(work, "s1"), Path.Combine(work, "s2"), "{TEMP}" } };

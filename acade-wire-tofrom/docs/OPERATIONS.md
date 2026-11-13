@@ -25,8 +25,10 @@ of the settings screen (section 9), including when each one takes effect.
    first rows look like the report. Answer Yes to write the SELECT into the config. If no candidate appears, compare the
    column names in the list with `database.columns` and `database.candidateColumns` in the config, edit them, and run
    discovery again.
-3. Note what the first line reports as the scratch database path from AutoCAD Electrical. If it is blank, the LISP
-   function name in settings is wrong for this release; the path pattern is used instead.
+3. Read the "LISP bridge" lines at the top: what the scratch-database function returned, and "Paths looked at", which
+   lists `database.pathPattern` and `<project>.mdb` in every `database.searchFolders` entry. If the database is reported
+   MISSING, run the native report again with the project active, then add the folder the LISP returned (or the folder
+   you find `<project>.mdb` in) to `database.searchFolders` in the config, and run discovery again.
 4. The findings note is saved in `%APPDATA%\LSE\LSE_ToFrom\Logs\Discovery_<stamp>.txt`. Keep it with the release notes.
 5. `LSETOFROMBLOCKS`: a folder dialog opens on the first block folder (`schematic.blockFolder`, else the DLL folder);
    OK writes the two block DWGs there, Cancel skips that step. A second question offers to add the layer and both block
@@ -161,7 +163,9 @@ key named. `Status: PARTIAL` means at least one such line.
 | Message | Meaning | What to do |
 |---|---|---|
 | database.wireSql is empty ... Run LSETOFROMDISCOVER | discovery not done | section 2, or use the report-file source |
-| Project database was not found | no `.mdb` at the pattern path and the LISP returned nothing | run a native report once; check the path in `LSETOFROMDISCOVER` |
+| The database query is not set yet (status line when `LSETOFROM` opens) | discovery not done; the window does not plan by itself | pick Report file and browse to a saved report, or run `LSETOFROMDISCOVER` |
+| Project database was not found | no `.mdb` at the pattern path, in any search folder, and the LISP returned nothing | run a native report once; read "Paths looked at" in `LSETOFROMDISCOVER`; add the folder to `database.searchFolders` |
+| A window title shows an older tag than `[2026-11-13-r1]` | the previous DLL is still loaded | close AutoCAD Electrical completely, replace the DLL, start again |
 | could not be opened read-only with any configured provider | no 64-bit Access engine | install it; `LSETOFROMDIAG` shows providers |
 | The query result has no column for Cmp1 (CMP1) ... | wrong table or column names | fix `database.columns` or `wireSql` from the discovery list |
 | No header row with the columns CMP1 and WIREHDL1 | the saved report lacks a header or the fields | re-save the report with the fields in section 2.1 |

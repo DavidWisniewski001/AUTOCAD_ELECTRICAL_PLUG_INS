@@ -12,10 +12,10 @@ Every file, type and public member of `acade-wire-tofrom\src\`, in dependency or
 | `LSETOFROM` | `Commands.Run` | runs the LISP bridges (active project, scratch path, then refresh when configured; `Prepare` runs refresh before the scratch path), opens `ToFromForm` with the active project or the single `.wdp` next to the current drawing |
 | `LSETOFROMEXPORT` | `Commands.ExportOnly` | `Prepare`, load rows (settings `DataSource`, `LastReportFile`), plan without annotation, `RunService.Execute(exportCsv: true)`, always show the run log and validation (ignores `ShowReportAfterRun`) |
 | `LSETOFROMVALIDATE` | `Commands.ValidateOnly` | `Prepare`, load rows, plan with annotation (drawings read only; current drawing only when `CurrentDrawingOnly`), write the validation file, show it with the plan text |
-| `LSETOFROMDISCOVER` | `Commands.Discover` | `Prepare`, `ScratchDb.Schema`, describe, pick the best candidate (3+ candidate columns), show its first rows, offer to save the SELECT into the config, save `Logs\Discovery_<stamp>.txt` |
+| `LSETOFROMDISCOVER` | `Commands.Discover` | `Prepare`, `AcadeInterop.ProbeBridge`, `ProjectService.DatabasePath` with the list of paths looked at (stops with advice when the file is missing), `ScratchDb.Schema`, describe, pick the best candidate (3+ candidate columns), show its first rows, offer to write the SELECT into the config (`ConfigService.SetStringValues`, which keeps comments; `Save` as fallback; a write failure is reported in the note, not thrown), `Finish` saves `Logs\Discovery_<stamp>.txt` and shows the note |
 | `LSETOFROMBLOCKS` | `Commands.Blocks` | folder dialog, `LabelWriter.ExportBlocks`, optional `LabelWriter.AddToDrawing` on the active document |
 | `LSETOFROMSETTINGS` | `Commands.Settings` | `ToFromSettingsForm` |
-| `LSETOFROMDIAG` | `Commands.Diag` | `DiagnosticsService.BuildReport` in a `TextReportForm` |
+| `LSETOFROMDIAG` | `Commands.Diag` | `AcadeInterop.ProbeBridge` (inside the command, before any dialog), then `DiagnosticsService.BuildReport(bridge)` in a `TextReportForm` |
 
 `Commands.Prepare()` (private): settings, config, active project or the single `.wdp` next to the current drawing (else
 an `InvalidOperationException` telling the user to activate a project), refresh LISP, scratch path, `ProjectService.Read`.
@@ -25,11 +25,11 @@ Every command body is one `try` whose catch is `ErrorService.Show`.
 
 | Type | Members | Notes |
 |---|---|---|
-| `AppSettings` | `ConfigPath`, `BackupFolderName` (`_LSE_TOFROM_BACKUP`), `BackupsToKeep` (10), `DataSource` (`scratch`/`report`), `LastReportFile`, `StalePolicy` (`warn`/`stop`/`ignore`), `ShowReportAfterRun`, `CurrentDrawingOnly`, `ActiveProjectLisp`, `ScratchDbLisp`, `RefreshDbLisp` (blank), `RecentProjects` | persisted by `SettingsService` |
+| `AppSettings` | `ConfigPath`, `BackupFolderName` (`_LSE_TOFROM_BACKUP`), `BackupsToKeep` (10), `DataSource` (`scratch`/`report`), `LastReportFile`, `StalePolicy` (`warn`/`stop`/`ignore`), `ShowReportAfterRun`, `CurrentDrawingOnly`, `ActiveProjectLisp`, `ScratchDbLisp`, `RefreshDbLisp` (blank), `RecentProjects`; constants `DefaultActiveProjectLisp`, `DefaultScratchDbLisp` (multi-candidate `cond` expressions), `LegacyActiveProjectLisp`, `LegacyScratchDbLisp` (the first cut's single-function expressions) | persisted by `SettingsService` |
 | `ToFromConfig` | `Source`, `Format`, `FarEndFormat`, `TagPinFormat`, `LocationFormat`, `MissingPinText`, `MissingTagText`, `IncludeLocation`, `Uppercase`, `MaxLength`, `SwapEnds`, `Schematic`, `Csv`, `Database`, `ReportFile`, `Both` | `tofrom.config.json` |
 | `SchematicConfig` | `LabelAt`, `LabelLayer`, `BlockH`, `BlockV`, `BlockFolder`, `TextAttribute`, `NodeAttribute`, `KeyAttribute`, `ShowNode`, `TextHeight`, `EndOffset`, `SideOffset`, `CollisionDistance`, `CollisionStep`, `CollisionTries`, `RepositionOnRerun`, `DeleteStale`, `WdmBlockName` | |
 | `CsvConfig` | `Delimiter`, `Encoding`, `ReverseAtFarEnd`, `OutputFolder`, `LabelFile`, `ReportFile`, `ValidationFile` | `{PROJECT}`, `{DATE}` tokens in names |
-| `DatabaseConfig` | `PathPattern`, `Providers`, `WireSql`, `DrawingSql`, `DrawingIndexBase`, `Confidence`, `Note`, `Columns`, `CandidateColumns` | |
+| `DatabaseConfig` | `PathPattern`, `SearchFolders` (`{FOLDER}`, `{TEMP}`, `{LOCALAPPDATA}\Temp`), `Providers`, `WireSql`, `DrawingSql`, `DrawingIndexBase`, `Confidence`, `Note`, `Columns`, `CandidateColumns` | |
 | `ReportFileConfig` | `HasHeader`, `Delimiter`, `Columns` | |
 | `ColumnMap` | one string per role (`WireNo`, `Cmp1`, `Pin1`, `Cmp2`, `Pin2`, `WireHdl1/2`, `CmpHdl1/2`, `DwgIx1/2`, `Loc1/2`, `Inst1/2`, `DwgName1/2`); `All()` yields `(Role, Column, Required)` | required: `Cmp1`, `Cmp2`, `WireHdl1` |
 | `WireRow` | the mapped row plus `Drawing1/2`, `Sheet1/2` after resolution; `Describe`; `Swapped()` | one physical wire |
@@ -51,12 +51,16 @@ Every command body is one `try` whose catch is `ErrorService.Show`.
 ## src/SettingsService.cs
 
 - `SettingsService.Load()` reads `%APPDATA%\LSE\LSE_ToFrom\settings.json`, fills defaults (config path next to the DLL,
-  backup name, keep >= 1, data source and stale policy normalised). `Save(s)` writes temp + move. `Remember(s, wdp)` keeps
-  25 recent projects. `SettingsPath`, `LogFolder`, `AssemblyFolder`, `Json` options (indented, case-insensitive, comments
-  and trailing commas allowed).
+  backup name, keep >= 1, data source and stale policy normalised) and ends with `Upgrade(s)`, which replaces a blank or
+  first-cut (`Legacy...`) bridge expression with the current default and leaves a customised one alone. `Save(s)` writes
+  temp + move. `Remember(s, wdp)` keeps 25 recent projects. `SettingsPath`, `LogFolder`, `AssemblyFolder`, `Json` options
+  (indented, case-insensitive, comments and trailing commas allowed).
 - `ConfigService.Load(path)` deserialises or returns defaults when missing, then `Validate`; `Source` records the path.
   `Save(c, path)` validates and writes temp + move with the shared `Json` options, which have no naming policy: keys
-  are written in PascalCase, comments are not preserved, and the computed `Both` and the blanked `Source` are written too. `Validate(c, path)` throws `InvalidOperationException` for an empty
+  are written in PascalCase, comments are not preserved, and the computed `Both` and the blanked `Source` are written too.
+  Discovery therefore uses `SetStringValues(path, (key, value)...)`: a textual replace of the named string values that
+  keeps comments and casing, returning false (so the caller falls back to `Save`) when the file or a key is missing.
+  `Validate(c, path)` throws `InvalidOperationException` for an empty
   format, an empty or invalid layer name, empty block or attribute names, a `labelAt` other than from/to/both, a
   non-positive text height, a non-SELECT `wireSql`/`drawingSql`, or an empty required column; normalises `tab` and `\t`
   delimiters and unknown encodings.
@@ -65,8 +69,10 @@ Every command body is one `try` whose catch is `ErrorService.Show`.
 
 - `Read(wdp)`: `ProjectInfo` with every drawing in file order (`=`, `==`, `===`, `=====SUB=`, `====REF` directives
   understood; `*`, `+`, `?` lines skipped). Throws `FileNotFoundException`.
-- `FullPath(wdp, entry)`, `DatabasePath(p, d, fromLisp)` (LISP result if it exists, else the pattern with `{FOLDER}` and
-  `{PROJECT}`), `OutputFolder(p, csv)`, `OutputFile(p, csv, pattern)`.
+- `FullPath(wdp, entry)`, `DatabasePath(p, d, fromLisp[, searched])` (the LISP result if that file exists; else
+  `pathPattern` if it exists; else the newest `<project>.mdb` among `searchFolders`; else the pattern path. `searched`
+  collects every path looked at for the discovery report), `Expand(text, p)` (`{FOLDER}`, `{PROJECT}`, `{TEMP}`,
+  `{LOCALAPPDATA}`, `{APPDATA}`), `OutputFolder(p, csv)`, `OutputFile(p, csv, pattern)`.
 
 ## src/ScratchDb.cs
 
@@ -82,7 +88,7 @@ Every command body is one `try` whose catch is `ErrorService.Show`.
 
 ## src/ReportImport.cs
 
-- `Read(path, c, notes)`: encoding by BOM or UTF-8 validity, delimiter from config (first character, or `\t`) or
+- `Read(path, c, notes)`: encoding by BOM or UTF-8 validity, delimiter from config (first character, `\t` or the word `tab`) or
   guessed from the first non-blank line (tab, semicolon, comma), header = first of the first 30 lines holding `Cmp1` and (`WireHdl1` or `Cmp2`), required
   columns checked, rows mapped; the note records the row count, delimiter and header line.
 - `Split(line, delim)`: RFC-style quoted field splitter.
@@ -131,31 +137,54 @@ Every command body is one `try` whose catch is `ErrorService.Show`.
 ## src/AcadeInterop.cs
 
 - `TryGetActiveProject(s)`, `TryGetScratchDbPath(s)`, `RefreshDatabase(s)` (returns a note), `GuessProjectNearActiveDrawing()`,
-  `CurrentDrawingPath()`, `Bridge(c)`. Private `Lisp(expr)` runs an expression through `Editor.Command` and reads USERS1.
+  `CurrentDrawingPath()`, `Bridge(c)`. `EvalByCommand(expr, out error)` runs an expression through `Editor.Command`;
+  `EvalByLisp(expr, out error)` through `acedEvaluateLisp` (P/Invoke into `accore.dll`, result buffer released with
+  `acutRelRb`); both read USERS1. Private `Lisp(expr)` tries the first, then the second, and sets `LastMethod`.
+  `ProbeBridge(s)` evaluates `(setvar "USERS1" "LSE_TOFROM_OK")` through each path and then the two configured
+  expressions, and returns the lines `LSETOFROMDIAG` and `LSETOFROMDISCOVER` print. `ProbeValue` is the probe string.
+
+## src/BuildInfo.cs, src/GridService.cs
+
+- `BuildInfo.Release` (`2026-11-13-r1`), `Label` (`LSE_ToFrom <release>`), `Title(window)` (`LSE_ToFrom: <window>   [<release>]`).
+- `GridService` (expanded style, no AutoCAD): `AddColumns(grid)` (Apply? check-box column **read-only**, then Drawing,
+  Change, Wire no, Label, Drawing has, Key, Note, each with a tooltip), `Fill(grid, plan, showKeep)` (one row per change,
+  plus one warning row per skipped drawing tagged with the `DrawingPlan`, listed even when unchanged rows are hidden;
+  rows that cannot be written are read-only and grey; open-drawing rows tinted), `IsNoteRow(grid, i)`, `Toggle(grid, i)`
+  (flips `LabelChange.Selected` and the cell; null for a note row), `Explain(grid, i)` / `Explain(change)` (status-line
+  text for a note row), `PaintCell(grid, e)` / `PaintWord(...)` (paints `note` in the first column of a note row).
+  Colours `NoteForeColor`, `SkippedBackColor`, `OpenBackColor`.
 
 ## Forms
 
-- `ToFromForm(initialProject, activeProject, scratchPath, currentDrawing, refreshNote)`: header (project, data source
-  radios and report file, three tick boxes, Plan), grid (Apply?, Drawing, Change, Wire no, Label, Drawing has, Key, Note),
-  tick buttons and "Show unchanged", footer (status, Plan text, Validation, Apply ticked, Help, Close). On `Shown` it
-  loads the config (`LoadConfig`; a failure disables Plan) and plans when the project file exists. `Plan()` saves
-  `DataSource` and `LastReportFile`, then loads project, rows and plan with `annotateBox.Checked` and `OnlyDrawing`
-  (current drawing when `currentOnlyBox` is ticked). `Apply()` reads `exportBox.Checked`, confirms, runs
-  `RunService.Execute`, shows the report when `ShowReportAfterRun`, re-plans. `FillGrid()` hides non-writing rows unless
-  `showKeepBox` is ticked; `Tick(rule)` sets `Selected` on writable changes of non-skipped drawings; `UpdateSummary()`
-  sets the summary and `applyButton.Enabled = Selected > 0 || exportBox.Checked` (not re-run when Export CSV changes).
-  The header tick boxes have no change handlers. Tooltips on every control.
-- `ToFromSettingsForm`: Config JSON (with Browse), Data source and stale-policy drop-downs, backup name and count, the
-  three LISP strings, two tick boxes (`ShowReportAfterRun`, `CurrentDrawingOnly`), Diagnostics, "Open config" (Notepad),
-  Save (validates the count and folder name, loads the config file if it exists, saves, closes). No Help button or
-  tooltips. `LastReportFile` and `RecentProjects` are not shown.
-- `TextReportForm(title, text)`: read-only Consolas text with Save as.
+- `ToFromForm(initialProject, activeProject, scratchPath, currentDrawing, refreshNote)`: title from `BuildInfo.Title`;
+  header (project, data source radios and report file, three tick boxes, Plan), grid built by `GridService` with
+  `CellClick` (first column, or any cell of a note row) and the space bar routed to `ToggleRow`, `CellPainting` to
+  `GridService.PaintCell`; tick buttons and "Show unchanged", footer (status, Plan text, Validation, Apply ticked, Help,
+  Close). On `Shown` it loads the config (`LoadConfig`; a failure disables Plan) and plans by itself only when the
+  project file exists and the source is ready (a report file that exists, or a non-empty `database.wireSql`); otherwise
+  the status line says what to do. `Plan()` saves `DataSource` and `LastReportFile`, then loads project, rows and plan
+  with `annotateBox.Checked` and `OnlyDrawing` (current drawing when `currentOnlyBox` is ticked). Changing Annotate
+  drawings, Current drawing only or a data-source radio after a plan calls `InvalidatePlan`, which drops the plan,
+  empties the grid, disables Apply and asks for a new Plan; toggling Export CSV calls `UpdateSummary()`. `Apply()` reads
+  `exportBox.Checked`, confirms, runs `RunService.Execute`, shows the report when `ShowReportAfterRun`, re-plans.
+  `FillGrid()` is `GridService.Fill` plus `UpdateSummary()`; `Tick(rule)` sets `Selected` on writable changes of
+  non-skipped drawings (Tick recommended: inserts, updates and duplicate deletions; Tick all: every writable change);
+  `UpdateSummary()` sets the summary and `applyButton.Enabled = Selected > 0 || exportBox.Checked`. Tooltips on every
+  control.
+- `ToFromSettingsForm`: title from `BuildInfo.Title`; Config JSON (with Browse), Data source and stale-policy
+  drop-downs, backup name and count, the three LISP strings, two tick boxes (`ShowReportAfterRun`,
+  `CurrentDrawingOnly`), Diagnostics, "Open config" (Notepad), Save (validates the count and folder name, loads the
+  config file if it exists, saves, closes). No Help button or tooltips. `LastReportFile` and `RecentProjects` are not
+  shown.
+- `TextReportForm(title, text)`: read-only Consolas text with Save as; the build tag is appended to the title.
 
 ## src/DiagnosticsService.cs, src/ErrorService.cs, src/HelpText.cs
 
-- `DiagnosticsService.BuildReport()`: assembly, settings, config summary, block DWG presence, ADODB availability and
-  per-provider registration, the unverified list.
-- `ErrorService.Log(step, ex)` writes `Logs\Error_<stamp>.txt`; `Show(owner, step, ex, advice)` shows the three-part dialog.
+- `DiagnosticsService.BuildReport(bridge = null)`: build tag, assembly, settings, the live bridge lines when the command
+  passed them (otherwise "not run (outside AutoCAD)"), config summary including search folders, block DWG presence, ADODB
+  availability and per-provider registration, the unverified list.
+- `ErrorService.Log(step, ex)` writes `Logs\Error_<stamp>.txt` with a `Build:` line; `Show(owner, step, ex, advice)` shows
+  the three-part dialog, naming the build in the Where line.
 - `HelpText.Main`, `HelpText.Fix(text)` (CRLF).
 
 ## Project, config, manifest and test files
@@ -163,6 +192,8 @@ Every command body is one `try` whose catch is `ErrorService.Show`.
 - `LSE_ToFrom.csproj`: `net8.0-windows`, WinForms, x64, nullable, `AcadDir` detection, `AutoCAD.NET` 25.1.0 reference
   package fallback, copies `config\tofrom.config.json` next to the DLL, excludes `tests\**`.
 - `config\tofrom.config.json`: see DATA-STORES.
-- `bundle\LSE_ToFrom.bundle\PackageContents.xml`: `AppVersion` 1.0.0, series `R25.1` only, `LoadOnCommandInvocation`
-  for the seven commands, not loaded at start-up. The `.csproj` sets no version, so the assembly is `1.0.0.0`.
-- `tests\LSE_ToFrom.SmokeTest\`: console program, 73 checks, fakes `HostBridge`, works in `%TEMP%`.
+- `bundle\LSE_ToFrom.bundle\PackageContents.xml`: `AppVersion` 1.1.0, series `R25.1` only, `LoadOnCommandInvocation`
+  for the seven commands, not loaded at start-up. The `.csproj` sets `Version` 1.1.0 (`InformationalVersion`
+  `1.1.0 (2026-11-13-r1)`).
+- `tests\LSE_ToFrom.SmokeTest\`: console program, 109 checks, fakes `HostBridge`, drives `GridService` on a real
+  `DataGridView`, works in `%TEMP%`.

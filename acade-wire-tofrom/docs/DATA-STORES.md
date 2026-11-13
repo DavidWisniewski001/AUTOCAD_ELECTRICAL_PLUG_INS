@@ -33,8 +33,8 @@ Every file, database, block and generated artefact the plugin reads or writes.
 | `StalePolicy` | `warn` | `warn`, `stop`, `ignore` |
 | `ShowReportAfterRun` | true | |
 | `CurrentDrawingOnly` | false | default for the tick box in `LSETOFROM`, and the scope of `LSETOFROMVALIDATE` |
-| `ActiveProjectLisp` | `(setvar "USERS1" (if (and (boundp 'ace_getactiveproject) (ace_getactiveproject)) (ace_getactiveproject) ""))` | unverified |
-| `ScratchDbLisp` | `(setvar "USERS1" (if (boundp 'c:wd_mdb_get_proj_scratch_dbnam) ... ""))` | unverified; result used only when the file exists |
+| `ActiveProjectLisp` | `(setvar "USERS1" (cond ((and (boundp 'ace_getactiveproject) ...)) ... ((and (boundp 'GBL_wd_prj) (= (type GBL_wd_prj) 'STR)) GBL_wd_prj) (t "")))` | tries `ace_getactiveproject`, `c:ace_getactiveproject`, `wd_proj_wdp_fnam`, `c:wd_proj_wdp_fnam`, `GBL_wd_prj`; unverified. A file holding the first cut's single-function expression is upgraded on load |
+| `ScratchDbLisp` | `(setvar "USERS1" (cond ((and (boundp 'c:wd_mdb_get_proj_scratch_dbnam) ...)) ((and (boundp 'wd_mdb_get_proj_scratch_dbnam) ...)) (t "")))` | unverified; result used only when the file exists; upgraded on load like the one above |
 | `RefreshDbLisp` | blank | run before each read when set; unverified which function refreshes the database |
 | `RecentProjects` | [] | last 25 `.wdp` paths, added after each successful run |
 
@@ -82,6 +82,7 @@ the reader. The write fails with an error when the config sits in a folder the u
 | `csv.outputFolder` | `LSE_ToFrom` | relative to the project folder unless rooted |
 | `csv.labelFile`, `reportFile`, `validationFile` | `{PROJECT}_tofrom_labels.csv`, `{PROJECT}_tofrom_report.csv`, `{PROJECT}_tofrom_validation.txt` | `{DATE}` also expands |
 | `database.pathPattern` | `{FOLDER}\{PROJECT}.mdb` | used when the LISP bridge returns nothing usable |
+| `database.searchFolders` | `{FOLDER}`, `{TEMP}`, `{LOCALAPPDATA}\Temp` | folders tried for `{PROJECT}.mdb` when the pattern path does not exist; newest file wins. Tokens `{FOLDER}`, `{PROJECT}`, `{TEMP}`, `{LOCALAPPDATA}`, `{APPDATA}` |
 | `database.providers` | ACE 16, ACE 12, Jet 4 | tried in order; an empty list falls back to ACE 16 and ACE 12 only |
 | `database.wireSql` | blank | the SELECT returning the from/to rows; set by discovery |
 | `database.drawingSql` | blank | optional SELECT: index, file name |
