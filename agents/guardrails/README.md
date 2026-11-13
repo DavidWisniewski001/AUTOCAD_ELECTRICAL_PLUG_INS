@@ -8,14 +8,13 @@ Each plugin has one guardian agent that is the only agent allowed to change it. 
 
 | Agent | Territory (the only folder it writes) | Extra read-only areas inside it |
 |---|---|---|
-| `lse-catalog-tools-guardian` | `acade-catalog-tools\` | none |
 | `lse-project-tools-guardian` | `acade-project-creator\` | `bundle\` |
 | `lse-ecad-doctor-guardian` | `acade-project-doctor\` | `config\standard\`, `bundle\` |
 | `lse-env-guardian` | `acade-project-env\` | `bundle\` |
 | `lse-librarian-guardian` | `acade-librarian\` | `bundle\` |
 | `lse-footprint-tools-guardian` | `inventor-addin\` | `LSE.Inventor.FootprintTools.addin` |
 
-All six are in `..\` (this `agents\` folder, the source of truth) and installed in `..\..\.claude\agents\` so Claude Code picks them up in this project. Edit the copy in `agents\` and copy it over; do not let the two drift.
+All five are in `..\` (this `agents\` folder, the source of truth) and installed in `..\..\.claude\agents\` so Claude Code picks them up in this project. Edit the copy in `agents\` and copy it over; do not let the two drift. The Catalog Tools guardian was retired on 2026-11-12 when that plugin was merged into the Librarian; its definition is kept in `..\retired\` for reference and is not installed.
 
 The four older agents (`lse-csharp-dev`, `lse-code-reviewer`, `lse-catalog-data`, `lse-documenter`) are helpers the guardians read as rulebooks. They have no hook and no territory, so prefer a guardian for any change to a plugin.
 
@@ -48,7 +47,7 @@ What the hook does not do: it does not inspect Python or other interpreters' fil
 ## Caveats
 
 - Frontmatter hooks in project-level agents only run after the workspace trust dialog for this folder has been accepted. If a guardian edits outside its folder without a `LSE GUARD RAIL` message, check that first.
-- Hooks run with the project root as the working directory, which is why the command uses the relative path `agents/guardrails/lse-guard.ps1`. Moving this folder breaks all six hooks.
+- Hooks run with the project root as the working directory, which is why the command uses the relative path `agents/guardrails/lse-guard.ps1`. Moving this folder breaks all five hooks.
 - The guard uses `CLAUDE_PROJECT_DIR` when set, else the `cwd` field of the hook input, to resolve relative paths.
 - Windows PowerShell 5.1 is what `powershell` resolves to on this machine; the script uses nothing newer.
 

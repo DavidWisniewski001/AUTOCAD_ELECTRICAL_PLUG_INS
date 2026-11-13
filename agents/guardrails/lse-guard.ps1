@@ -58,7 +58,7 @@ $neverWriteFull = $neverWrite | ForEach-Object {
     else { [IO.Path]::GetFullPath((Join-Path $rootDir $p)).TrimEnd('\') }
 }
 
-$protectedTop = @("acade-catalog-tools", "acade-project-creator", "acade-project-doctor", "acade-project-env", "acade-librarian", "inventor-addin",
+$protectedTop = @("acade-project-creator", "acade-project-doctor", "acade-project-env", "acade-librarian", "inventor-addin",
                   "reference", "releases", "agents", "AutoCAD_Electrical_2026", "README.docx", "STYLE-GUIDE.docx", "README.md") |
                 Where-Object { $_ -ne $Root }
 

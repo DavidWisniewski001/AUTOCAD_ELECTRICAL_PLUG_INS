@@ -134,7 +134,7 @@ Rollback, in order: restore the catalog from its backup copy, restore the footpr
 
 ### 5.5 Consumers
 
-The AutoCAD Electrical CatalogTools plugin (`../acade-catalog-tools`) reads the inserted row and pushes `USER1` onto schematic blocks. AutoCAD Electrical itself resolves the panel footprint by looking up `footprint_lookup.mdb` by manufacturer table then catalog number and inserting the DWG named in `BLKNAM`.
+The AutoCAD Electrical Librarian plugin (`../acade-librarian`, `LSEASSIGNCOMPONENT`; it absorbed the CatalogTools plugin on 2026-11-12) reads the inserted row and pushes `USER1` onto schematic blocks. AutoCAD Electrical itself resolves the panel footprint by looking up `footprint_lookup.mdb` by manufacturer table then catalog number and inserting the DWG named in `BLKNAM`.
 
 ## 6. Design decisions and their reasons
 
@@ -167,4 +167,4 @@ The footprint origin (0,0) is the centre of the projected view. The visible `P_T
 
 ## 9. Relationship to the AutoCAD Electrical plugin
 
-`AccessCatalogService.cs` (the `Ace` helper, provider fallback, release pattern) and `VaultCatalogService` were carried over from `../acade-catalog-tools` with the same shapes. The two projects do not share a compiled assembly; the code is duplicated deliberately so each can ship alone. If you fix a defect in one copy, check the other.
+`AccessCatalogService.cs` (the `Ace` helper, provider fallback, release pattern) and `VaultCatalogService` were carried over from the former Catalog Tools plugin, now `../acade-librarian` (`src/AccessCatalogService.cs`, `src/VaultCatalogService.cs`), with the same shapes. The two projects do not share a compiled assembly; the code is duplicated deliberately so each can ship alone. If you fix a defect in one copy, check the other.

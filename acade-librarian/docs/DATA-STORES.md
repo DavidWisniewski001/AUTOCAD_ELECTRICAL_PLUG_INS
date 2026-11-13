@@ -6,7 +6,8 @@ Every file, database, lock and generated artefact the plugin reads or writes. Pa
 
 | Store | Location | Read | Written |
 |---|---|---|---|
-| `settings.json` | `%APPDATA%\LSE\AutoCADElectricalLibrarian\settings.json` | every command | settings form, after each successful run (recent items) |
+| `settings.json` | `%APPDATA%\LSE\AutoCADElectricalLibrarian\settings.json` | every command | settings form, after each successful run (recent items), catalog browser (favourites, recent assignments) |
+| `CompanyStandards.json` | `%APPDATA%\LSE\AutoCADElectricalLibrarian\CompanyStandards.json`, or the path in `CompanyStandardsPath` (section 11) | catalog browser, diagnostics, settings test | catalog browser, when a company standard is toggled |
 | `LseLibraryStandard.json` | next to the DLL, or the shared copy named in settings | wizard, audit, diagnostics | never |
 | Symbol library | `C:\_Lake_Shore_E_Vault\CAD Standards\AutoCAD\ECAD Standards\Symbol Library\LSE E-Cad Symbols` | audit, name clash check | one new `.dwg` per filed symbol |
 | Stock symbol library | `...\Symbol Library\NFPA` | name clash check, audit | never |
@@ -58,6 +59,14 @@ Serialised `AppSettings`. Blank paths are filled at load time when the LSE stand
 | `DeepAudit` | `false` | Pre-ticks "Open every drawing" in the audit. |
 | `AuditStockEntries` | `false` | Pre-ticks "Include stock AutoCAD Electrical pages". |
 | `RecentItems` | `[]` | Paths of the last 25 filed items. |
+| `CompanyStandardsPath` | `%APPDATA%\LSE\AutoCADElectricalLibrarian\CompanyStandards.json` (set in `SettingsService.Load` when blank) | The company standards file (section 11); point it at a shared copy to share the list. |
+| `LsePartAttribute` | `USER1` | The block attribute that receives the LSE part number on assignment. Not the catalog column (`LsePartColumn`); blank becomes `USER1`. |
+| `Favorites` | `[]` | `CatalogRecord.Key` values (`TABLE\|MANUFACTURER\|CATALOG`, upper case) the engineer marked with Toggle favorite. |
+| `Recent` | `[]` | Keys of the last records assigned to a block, most recent first, 25 kept. Separate from `RecentItems`. |
+| `VaultExplorerPath` | `C:\Program Files\Autodesk\Vault Client 2026\Explorer` | Folder holding the Vault SDK DLLs; read only when `CatalogVaultPath` is set. |
+| `VaultServer` | `lse-cep-sql` | Vault server name; required when `CatalogVaultPath` is set. |
+| `VaultName` | `Lake_Shore_E_Vault` | Vault name; required when `CatalogVaultPath` is set. |
+| `CatalogVaultPath` | blank | Vault path of `default_cat.mdb`. Blank = no Vault checkout or checkin; set = every catalog write checks the file out and in (section 10.3). |
 
 "Read library paths from project" parses the `.wdp`: `+[1]` (semicolon list of symbol library folders; the one containing "LSE" becomes the symbol root, the one named `NFPA` the stock root), `+[2]` (schematic `.DAT` full path: folder and file name), `+[3]` (footprint folders: "LSE" and the other), `+[4]` (panel `.DAT` file name; a different folder is reported, not applied, because the Librarian uses one icon menu folder). The template `E-CAD CUSTOM PROJECT TEMPLATE 2.wdp` in this repository carries exactly these lines.
 
@@ -224,9 +233,10 @@ The AutoCAD Electrical catalog: one table per family (`FU`, `CB`, `PB`, ...), th
 | Issued part numbers | The column named by `LsePartColumn` (`USER1`) of every family table, read with `LIKE '<prefix>%'` for the preview and the run, and with `= <number>` for the duplicate check. |
 | Family hint | Standard-form numbers in the part column grouped by category code and table. |
 | Duplicate check | `MANUFACTURER` + `CATALOG` in the chosen family table. |
+| Catalog browser | `SELECT TOP 20000 * FROM [<family table>]` (`CatalogService.ReadTable`: every column of every row, read only) and `SELECT TOP 1 *` by MANUFACTURER and CATALOG (`FindByKey`). |
 | The inserted row | Only columns the table has, only when non-empty: `CATALOG` (the manufacturer part number, 60), `MANUFACTURER` (24), `DESCRIPTION` (150), `TYPE`, `RATING`, `VOLTAGE`, the part column = the LSE part number, `USER2` (the purchase description by default), `USER3`, `TEXTVALUE`, `WEBLINK`, `WDBLKNAM` (60). Sizes are the `DefinedSize` of each column, checked before the insert. A table without the part column is refused. |
 
-The Librarian never updates or deletes a catalog row.
+The Librarian never deletes a catalog row, and the browser never writes the catalog. The only update is WDBLKNAM on an existing row (the symbol link, `CatalogTransactionService.SetSymbols`).
 
 ### 10.1 Catalog backups and the report
 
@@ -235,3 +245,48 @@ Every catalog add creates `<CatalogBackupFolder or <catalog folder>\LSE_Catalog_
 ### 10.2 Issuance lock
 
 `LSE_PartNumber.lock` next to `default_cat.mdb`, opened with `FileShare.None` and `FileOptions.DeleteOnClose`, holding `user@machine timestamp`, held from before the backup copy until the run ends. It is the same file name the Inventor add-in uses, so both tools wait on each other. A second workstation retries 40 times at 250 ms (10 s), then fails with "Another workstation is issuing a part number right now". A crash leaves no file; a hung AutoCAD does, and diagnostics report it.
+
+### 10.3 Optional Vault checkout
+
+When `CatalogVaultPath` is set, `Run` and `SetSymbols` check `default_cat.mdb` out of Vault after the backup copy and check it in after the read-back; on failure the file is restored from the backup and the checkout is undone. Server, vault name and SDK folder come from `VaultServer`, `VaultName` and `VaultExplorerPath`. The report (`CatalogReport.txt` or `LibraryReport.txt`, and `SymbolLinkReport.txt`) gets these lines, in this order among the existing ones:
+
+| Line | When |
+|---|---|
+| `Vault checkout: PASS` | After `Catalog backup: ...`, before the number is computed or the row written. |
+| `Vault checkin: PASS` | After the read-back, with the comment `LSE Librarian: add catalog record <MFG> <CAT> (<column>=<part>)` (`SetSymbols`: `LSE Librarian: set WDBLKNAM on <n> catalog row(s)`). |
+| `Vault undo checkout: PASS` | Error path, after `Catalog rollback: ...`. |
+| `Vault undo checkout: FAILED <reason>` | Error path; the checkout may still be held in Vault and must be undone in Vault Explorer. |
+
+With `CatalogVaultPath` blank none of these lines appears (the smoke test asserts this). A Vault path with a missing `VaultExplorerPath` folder is refused before the backup is made.
+
+## 11. CompanyStandards.json
+
+The curated list behind the browser's Company Standards scope. A JSON array of `StandardEntry`, written by `CompanyStandardsService.Save` (folder created, `<path>.tmp` then `File.Move` with overwrite) whenever the engineer presses Toggle company standard in the catalog browser, and read by `CompanyStandardsService.Load` (a missing or unreadable file is an empty list; comments and trailing commas are tolerated). Nothing else writes it; it can be edited by hand.
+
+Location: `%APPDATA%\LSE\AutoCADElectricalLibrarian\CompanyStandards.json` by default (next to `settings.json`), or any path in `CompanyStandardsPath`; a shared network copy gives every workstation the same list. The old LSE Catalog Tools folder `%APPDATA%\LSE\AutoCADElectricalCatalogTools\` is not read.
+
+| Field | Meaning |
+|---|---|
+| `RecordKey` | `TABLE\|MANUFACTURER\|CATALOG`, upper case: the family table, the MANUFACTURER and the CATALOG of the record. Matched case-insensitively. |
+| `Category` | Grouping label; the browser writes the family's friendly name, `Uncategorized` when blank. |
+| `Status` | `Company Standard` (default) or `Legacy`; `Legacy` shows in the Status column as `Legacy`, otherwise `Standard`. |
+| `Notes` | Free text, not used by the browser. |
+
+```
+[
+  {
+    "RecordKey": "FU|BUSSMANN|FNQ-R-1",
+    "Category": "Fuses",
+    "Status": "Company Standard",
+    "Notes": ""
+  },
+  {
+    "RecordKey": "FU|LITTELFUSE|KLKD-1",
+    "Category": "Fuses",
+    "Status": "Legacy",
+    "Notes": "Replace with the Bussmann part on new work"
+  }
+]
+```
+
+Toggling a record that is already listed (legacy or not) removes the entry. When the file is empty or missing the browser starts on the Full Catalog scope. The example values are illustrative.

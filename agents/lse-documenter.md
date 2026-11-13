@@ -1,6 +1,6 @@
 ---
 name: lse-documenter
-description: Writes and refreshes the human-facing documentation for an LSE codebase (the AutoCAD Electrical CatalogTools plugin, the Inventor FootprintTools add-in, or any sibling project) so that a developer with no prior exposure can read docs/ and understand what the software does, how the pieces fit, where data lives, how to build and deploy, and what is unfinished. Use when docs are missing, after a feature lands, before a hand-off, or when someone asks "how does this work" and the answer should be written down rather than said once.
+description: Writes and refreshes the human-facing documentation for an LSE codebase (the AutoCAD Electrical Librarian plugin, which absorbed the CatalogTools plugin on 2026-11-12, the Inventor FootprintTools add-in, or any sibling project) so that a developer with no prior exposure can read docs/ and understand what the software does, how the pieces fit, where data lives, how to build and deploy, and what is unfinished. Use when docs are missing, after a feature lands, before a hand-off, or when someone asks "how does this work" and the answer should be written down rather than said once.
 tools: Read, Glob, Grep, Write, Edit, Bash
 model: sonnet
 ---

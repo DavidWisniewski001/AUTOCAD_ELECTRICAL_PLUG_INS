@@ -45,6 +45,11 @@ Type `LSELIBRARYSETTINGS`.
 | Default series | 002 |
 | Offer a catalog record (default_cat.mdb) in the Librarian wizard | ticked, unless this workstation should never write the catalog |
 | Fill USER2 with the purchase description (Description + MPN) by default | ticked (the LSE purchase description rule) |
+| Company standards JSON (catalog browser) | leave the default `%APPDATA%\LSE\AutoCADElectricalLibrarian\CompanyStandards.json`, or a shared copy on the network so every workstation sees the same company standards. Blank only if nobody will use Toggle company standard |
+| Block attribute that receives the LSE part number | `USER1` (the default), or the attribute your symbols use for the LSE number. Letters, digits and underscores; this is the block attribute, not the catalog column above |
+| Vault Explorer folder (optional, catalog checkout) | leave the default `C:\Program Files\Autodesk\Vault Client 2026\Explorer`; only used when the Vault path below is set |
+| Vault server / Vault name | `lse-cep-sql` / `Lake_Shore_E_Vault` (defaults); required only when the Vault path below is set |
+| Catalog path in Vault (blank = no Vault checkout) | leave blank unless `default_cat.mdb` is Vault-controlled and this workstation should check it out and in around every catalog write. Set it only after trying it against a test vault (not verified against the live Vault) |
 
 On a workstation where the Vault working folder is at the standard path all of these are pre-filled. Otherwise press **Read library paths from project...**, choose any LSE `.wdp` (for example `E-CAD CUSTOM PROJECT TEMPLATE 2.wdp`), and the folders and menu names are taken from its `+[1]`..`+[4]` lines. Press **Test** (folders exist, both menus parse, JSON loads, lookup opens, the workbook or the snapshot parses with its tab and code counts, the catalog opens with its family table count), then **Save**.
 
@@ -146,6 +151,23 @@ The same dialog (title "LSE Librarian: catalog symbol and footprint links") show
 4. The run backs up `default_cat.mdb` to `<CatalogBackupFolder>\<stamp>_symbollink\`, takes `LSE_PartNumber.lock`, updates only the WDBLKNAM column, reads each row back and writes `SymbolLinkReport.txt`. A failure restores the catalog. Rows are never inserted or deleted; a row that does not match exactly once is refused.
 5. To undo, copy the catalog back from that backup folder (or set the previous symbol; the report lists it as "was ...").
 
+## 4.4 Browsing the catalog and assigning a record to a block (`LSECATALOG`, `LSEASSIGNCOMPONENT`)
+
+`LSECATALOG` opens the browser on its own; `LSEASSIGNCOMPONENT` first asks you to click a block in the open drawing and opens the browser with that block loaded. Both end up in the same dialog. Nothing in the catalog is written by browsing or assigning; the only things written are the attributes of the block you assign to and your settings (favourites, recent list) and, when you toggle a company standard, the company standards JSON.
+
+1. Type `LSEASSIGNCOMPONENT` and click the component block (a block reference with attributes). Cancel leaves the command without opening the dialog. For browsing only, type `LSECATALOG`.
+2. Pick a scope in the left tree: **Company Standards**, **My Favorites**, **Recently Used** or **Full Catalog**. The browser starts on Full Catalog when the company standards list is empty. With a block loaded, the Family box is pre-set to the table that matches the block's FAMILY attribute.
+3. Narrow the list with **Family** (friendly names from the catalog), **Manufacturer**, **Type** and **Rating**, and the search box (it looks in every column). The grid shows Status, Manufacturer, Catalog, the LSE part number, Description, Type, Rating and Symbol (WDBLKNAM). A family table is read up to 20,000 rows; if it is larger the status line says so and you must filter by another family.
+4. Click a record. When a block is loaded the lower grid shows what would change: Attribute, Current, Proposed, Preserve. Proposed is editable. Attributes such as `TAG1`, `LOC`, `INST`, `FAMILY`, `XREF`, `WDTAGALT`, anything starting with `X` and anything with `WIRE` or `PIN` in the tag start ticked in Preserve and are not touched. To overwrite one, untick Preserve: Proposed fills with the record's mapped value when there is one, and you can still type over it; ticking again restores the current value. If the block has no attribute for the part number (`USER1` by default) it shows as `(missing)` and is added as an invisible attribute.
+5. Press **Assign component** (or double-click the record). Without a loaded block it asks you to click one. If the block's FAMILY does not match the record's family table, or the record's symbol name is not part of the block name, a warning asks "Apply anyway?"; answer No to stop. The attributes change in the drawing, the record moves to the top of Recently Used and the status line names the part number.
+6. **Select block** / **Change block** switches to another block. **Toggle favorite** adds or removes the record in My Favorites. **Toggle company standard** adds or removes it in the company standards file (a refused save names the setting to fix). **New record...** opens the catalog record dialog on the current family table; its add is the same backed-up, logged `LSECATALOGADD` run, and the list reloads afterwards. **Refresh** re-reads the table.
+
+What to check on the first run in AutoCAD (none of this has run inside AutoCAD yet): the dialog opens and the grids are readable; the block you picked shows its real attributes; a 20,000-row family table (if any) scrolls and filters acceptably; after Assign the attributes read as the preview said, `TAG1` and the other preserved attributes are unchanged, and the drawing regenerates. Try it first on a scratch drawing.
+
+To undo an assignment use AutoCAD `UNDO` (the browser changes only the block's attributes in one transaction). There is no backup or report for an assignment. A favourite or recent entry is removed with Toggle favorite or by editing `settings.json`; a company standard with Toggle company standard or by editing the JSON.
+
+**Vault.** If "Catalog path in Vault" is set, every catalog write (including **New record...**) checks the catalog out of Vault after the backup and in after the read-back; see section 6 for the log lines and section 8 for the messages. Try it on a test vault first.
+
 ## 5. Running the audit
 
 Type `LSELIBRARYAUDIT`. The audit runs on open and lists findings with a severity colour, where, what and what to do. Filter with **Show** (errors; errors and warnings; everything) and the search box. Options: **Open every drawing (slow)** adds attribute and `WD_M` checks per drawing; **Include stock AutoCAD Electrical pages** checks the Autodesk pages too (bare block names are then verified against the stock folders).
@@ -222,6 +244,19 @@ Catalog insert into FU (USER1=45BUSFH0000012, BUSSMANN CH14J1I): PASS
 Status: SUCCESS
 ```
 
+With `CatalogVaultPath` set (2026-11-12) the catalog lines gain Vault steps. A good run reads, in order:
+
+```
+Catalog backup: ...\LSE_Catalog_Backups\20261112_100501\default_cat.mdb
+Vault checkout: PASS
+  ...preview lines...
+Catalog insert into FU (USER1=45BUSFH0000012, BUSSMANN CH14J1I): PASS
+Vault checkin: PASS
+Status: SUCCESS
+```
+
+A failed run restores the file first, then undoes the checkout: `Catalog rollback: PASS`, then `Vault undo checkout: PASS`, or `Vault undo checkout: FAILED <reason>`. In the failed case the catalog may still be checked out to you in Vault: undo the checkout in Vault Explorer. The Set symbol run (`SymbolLinkReport.txt`) has the same lines, with the checkin comment "LSE Librarian: set WDBLKNAM on n catalog row(s)". With the Vault path blank none of these lines appears. Assigning a record to a block (`LSEASSIGNCOMPONENT`) writes no log.
+
 ## 7. Recovery by hand
 
 1. Open the run's backup folder (the path is in the log and in the error message).
@@ -284,3 +319,13 @@ For the catalog (`Catalog rollback: FAILED`, or a record that should not have be
 | Read-back verification failed after the insert / Read-back of the part number failed | The row did not come back from the catalog | The catalog was restored from its backup; check the Access engine and the file, then retry. |
 | User circuits do not get catalog records | Catalog option on a circuit (not reachable from the wizard) | Untick. |
 | Press 'Catalog record...' to fill in the catalog record, or untick the catalog option | Box ticked, dialog cancelled | Do one or the other. |
+| The company standards JSON path is not set (LSELIBRARYSETTINGS). | Toggle company standard with a blank `CompanyStandardsPath` | Set "Company standards JSON (catalog browser)" in settings. |
+| A catalog path in Vault is set but the Vault Explorer folder was not found: ... (LSELIBRARYSETTINGS). | `CatalogVaultPath` is set and `VaultExplorerPath` does not exist; refused before the backup | Fix "Vault Explorer folder", or blank the Vault path to work without Vault. |
+| No active drawing. | `LSEASSIGNCOMPONENT`, Select block or Assign with no drawing open | Open a drawing. |
+| Vault Explorer SDK folder not found: ... | The Vault checkout or checkin could not load the SDK from that folder | Correct the Vault Explorer folder; the catalog was restored. |
+| Catalog is already checked out. | The Vault file has a checkout user (you or someone else) | Check it in or undo the checkout in Vault Explorer, then retry. The catalog was restored. |
+| Catalog was not found in Vault: ... | "Catalog path in Vault" is wrong | Correct the Vault path. |
+| Could not obtain Vault server identity. | `VaultServer` unreachable or misspelled | Check "Vault server" and the network. |
+| No compatible UndoCheckout method was found. | The Vault SDK version has no usable UndoCheckout overload (shown as `Vault undo checkout: FAILED ...`) | Undo the checkout in Vault Explorer; report the SDK version. |
+| The block attribute name may only contain letters, digits and underscores. | Settings Save with a bad "Block attribute that receives the LSE part number" | Fix the name; blank means `USER1`. |
+| Vault server and Vault name are required when a catalog path in Vault is set. | Settings Save | Fill both, or blank the Vault path. |

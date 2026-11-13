@@ -47,7 +47,7 @@ The third argument is optional. When given, the catalog is opened read-only to l
 
 - Target: `net8.0-windows`, WinForms, x64. Inventor 2025+ add-ins run on .NET 8.
 - Reference: `Autodesk.Inventor.Interop.dll` from `C:\Program Files\Autodesk\Inventor 2026\Bin\Public Assemblies` (Copy Local = false). Override with `dotnet build -p:InventorBin="D:\Autodesk\Inventor 2026\Bin"`.
-- No NuGet packages. ADODB and AutoCAD are late-bound COM (`dynamic`); the Vault SDK is loaded by reflection from the Vault Explorer folder, exactly like the AutoCAD Electrical plugin in `../acade-catalog-tools`.
+- No NuGet packages. ADODB and AutoCAD are late-bound COM (`dynamic`); the Vault SDK is loaded by reflection from the Vault Explorer folder, exactly like the AutoCAD Electrical Librarian in `../acade-librarian` (`src/VaultCatalogService.cs`).
 - **This folder was authored on a machine without the .NET SDK, Inventor or AutoCAD, so the code has not been compiled or run yet.** Build it on an engineering workstation first; expect to fix small interop signature differences (see "Verify" below).
 
 ## Deploy

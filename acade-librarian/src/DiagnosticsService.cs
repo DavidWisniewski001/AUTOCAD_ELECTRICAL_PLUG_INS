@@ -12,7 +12,10 @@ public static class DiagnosticsService{
   if(File.Exists(s.CatalogPath))try{var cs=new CatalogService(s.CatalogPath);x.Add($"Catalog read: PASS ({cs.GetTables().Count} family tables, part number column {CatalogTransactionService.PartColumn(s)}, backups in {CatalogTransactionService.BackupRoot(s)})");}catch(Exception ex){x.Add("Catalog read: FAIL "+ex.Message);}
   if(s.CatalogPath.Length>0&&File.Exists(IssuanceLock.PathFor(s.CatalogPath)))x.Add("Part number issuance lock file present: "+IssuanceLock.PathFor(s.CatalogPath)+" (another workstation is issuing a number, or a crash left it behind)");
   if(s.IconMenuFolder.Length>0&&File.Exists(LibraryLock.PathFor(s.IconMenuFolder)))x.Add("Library lock file present: "+LibraryLock.PathFor(s.IconMenuFolder)+" (another workstation is writing, or a crash left it behind)");
-  x.Add("Recent items: "+s.RecentItems.Count);return string.Join(Environment.NewLine,x);}
+  x.Add("Recent items: "+s.RecentItems.Count);
+  x.Add(FileLine("Company standards JSON (catalog browser)",s.CompanyStandardsPath)+(File.Exists(s.CompanyStandardsPath)?$" ({CompanyStandardsService.Load(s.CompanyStandardsPath).Count} records)":""));x.Add($"Catalog browser: block attribute for the part number {ComponentAssignService.PartAttribute(s)}, {s.Favorites.Count} favourites, {s.Recent.Count} recent assignments");
+  x.Add(VaultCatalogService.Enabled(s)?"Catalog Vault checkout: ON ("+s.CatalogVaultPath+" on "+s.VaultServer+"/"+s.VaultName+"); "+Folder("Vault Explorer folder",s.VaultExplorerPath):"Catalog Vault checkout: off (Catalog path in Vault is blank)");
+  return string.Join(Environment.NewLine,x);}
  static string Folder(string label,string path)=>label+": "+(path.Length==0?"(blank)":path+(Directory.Exists(path)?" (exists)":" (MISSING)"));
  static string FileLine(string label,string path)=>label+": "+(path.Length==0?"(blank)":path+(File.Exists(path)?" (exists)":" (MISSING)"));
 }

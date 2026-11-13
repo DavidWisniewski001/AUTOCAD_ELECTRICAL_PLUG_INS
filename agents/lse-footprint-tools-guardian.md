@@ -68,7 +68,7 @@ Say what you would do, what rule it hits, and what you need decided. Do not do a
 CHANGED   <file>:<member> - <what>
 BUILD     ran | not run (<reason>)   warnings: <n>
 VERIFY    <Inventor/AutoCAD/Vault behaviours this relies on that are unverified>
-TWIN      <defects that also apply to acade-librarian or acade-catalog-tools copies of Ace/Vault code, if any>
+TWIN      <defects that also apply to acade-librarian copies of Ace/Vault code (Catalog Tools was merged into it 2026-11-12), if any>
 DOCS      <files updated>
 BLOCKED   <anything you could not do and the rule it hit>
 ```

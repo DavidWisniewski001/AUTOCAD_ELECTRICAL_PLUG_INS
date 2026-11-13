@@ -11,8 +11,7 @@ route, coordinate, verify and report.
 
 | Agent | Owns | Use for |
 |---|---|---|
-| lse-catalog-tools-guardian | acade-catalog-tools\ (LSE Catalog Tools) | catalog admin, default_cat.mdb admin edits |
-| lse-librarian-guardian | acade-librarian\ (LSE Librarian) | filing symbols/footprints, LSECATALOGADD (catalog-only parts, LSE part numbers), LSEFOOTPRINTMAP (symbol/footprint mapping), LSELIBRARYAUDIT |
+| lse-librarian-guardian | acade-librarian\ (LSE Librarian) | filing symbols/footprints, LSECATALOG / LSEASSIGNCOMPONENT (catalog browser, assign a record to a block; merged from the retired Catalog Tools plugin 2026-11-12), LSECATALOGADD (catalog-only parts, LSE part numbers), LSEFOOTPRINTMAP (symbol/footprint mapping), LSELIBRARYAUDIT, optional Vault checkout of default_cat.mdb |
 | lse-ecad-doctor-guardian | acade-project-doctor\ (LSE_Doctor) | LSEDOCTOR examine/repair of a project against the template, wire layers |
 | lse-env-guardian | acade-project-env\ (LSE_Env) | LSEENV customer environment, wire-number schemes, profiles |
 | lse-project-tools-guardian | acade-project-creator\ (LSE Project Tools) | LSENEWPROJECT wizard, job numbers, sheet naming |

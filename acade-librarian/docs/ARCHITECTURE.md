@@ -12,17 +12,21 @@ AutoCAD Electrical finds a symbol or footprint in three places that must agree: 
 
 ## 2. Components
 
-One .NET 8 assembly, `LSE.AutoCADElectrical.Librarian.dll`, loaded into AutoCAD Electrical with `NETLOAD` or a `.bundle`. Eighteen source files, one namespace `LSE.AutoCADElectrical.Librarian`.
+One .NET 8 assembly, `LSE.AutoCADElectrical.Librarian.dll`, loaded into AutoCAD Electrical with `NETLOAD` or a `.bundle`. Twenty-four source files (four of them added on 2026-11-12 when the catalog browser was merged in), one namespace `LSE.AutoCADElectrical.Librarian`.
 
 | Layer | File | Responsibility |
 |---|---|---|
-| Host integration | `src/Plugin.cs` | Registers the five `LSE...` commands, opens the forms, hands an audit pick to the wizard. |
+| Host integration | `src/Plugin.cs` | Registers the eight `LSE...` commands, opens the forms, hands an audit pick to the wizard and a picked block to the catalog browser (`Browse`). |
 | User interface | `src/LibrarianForm.cs` | The four-step wizard, drawing inspection, name builder, page picker, icon preview, catalog record group, log pane. |
 | User interface | `src/CatalogRecordForm.cs` | The catalog record dialog: workbook tab and codes, part-number preview, family table, catalog fields, description builder. Stand-alone (`LSECATALOGADD`) it writes the record; embedded in the wizard it hands the request back. |
+| User interface | `src/CatalogBrowserForm.cs` | The catalog browser (`LSECATALOG`, `LSEASSIGNCOMPONENT`): scope tree, family and filter combos, record grid, attribute change preview, favourites, company standards, New record..., assign. Reads the catalog; writes only block attributes (through `ComponentAssignService`) and settings. |
 | User interface | `src/AuditForm.cs` | Runs the audit, shows findings in a filterable grid, exports the report, hands a drawing to the wizard. |
 | User interface | `src/LibrarySettingsForm.cs` | Edits and tests every setting; reads library paths from a `.wdp`; writes the naming snapshot JSON. |
+| Component assignment | `src/ComponentAssignService.cs` | Prompts for a block, reads its attributes, builds the proposed attribute values from a catalog record, applies them in one locked transaction, warns on FAMILY or WDBLKNAM mismatch. The only code in the plugin that writes attributes of a drawing block. |
+| Company standards | `src/CompanyStandardsService.cs` | `CompanyStandardsService` (load, save, find, toggle `CompanyStandards.json`) and `FamilyNames` (friendly family names). |
+| Vault | `src/VaultCatalogService.cs` | Optional checkout, checkin and undo of `default_cat.mdb` through the Vault SDK loaded by reflection. Called only from `CatalogTransactionService`. |
 | Orchestration | `src/LibraryTransactionService.cs` | Validation, the single mutating run for library items, backups, lock, rollback, the catalog step. `LibraryLock`. |
-| Orchestration | `src/CatalogTransactionService.cs` | The only writer of `default_cat.mdb` (`Run` adds a record; since 2026-11-12 `SetSymbols` updates WDBLKNAM on existing rows, same backup, lock, read-back and rollback): validation, preview, family usage, backup, issuance lock, number computation, insert, read-back, restore on failure, `CatalogReport.txt`. |
+| Orchestration | `src/CatalogTransactionService.cs` | The only writer of `default_cat.mdb` (`Run` adds a record; since 2026-11-12 `SetSymbols` updates WDBLKNAM on existing rows, same backup, lock, read-back and rollback): validation, preview, family usage, backup, issuance lock, optional Vault checkout and checkin, number computation, insert, read-back, restore on failure, `CatalogReport.txt`. |
 | Naming workbook | `src/NamingWorkbookService.cs` | Reads the LSE parts catalog workbook (`.xlsx` as a zip of XML) and parses the naming blocks of every `LSE ` tab; loads and saves the JSON snapshot; caches per file. |
 | Part numbers | `src/PartNumberService.cs` | Format, validation, legacy floor, next-sequence computation, preview explanation, description rules, purchase description. |
 | Icon menus | `src/IconMenuService.cs` | Parses, renders and edits `.DAT` icon menu files without disturbing anything it did not add. |
@@ -30,10 +34,10 @@ One .NET 8 assembly, `LSE.AutoCADElectrical.Librarian.dll`, loaded into AutoCAD 
 | AutoCAD database | `src/DrawingInspectionService.cs` | Opens a DWG as a side database to list attributes, nested blocks, extents and the preview; lists and picks blocks; WBLOCK export. |
 | Icon images | `src/IconRenderService.cs` | Renders the drawing's curves to a PNG, or fits the DWG preview or an imported image. |
 | Audit | `src/LibraryAuditService.cs` | `LibraryAuditService` (menus, folders, lookup, images) and `RuleCheckService` (attribute rules against a `DrawingInfo`). |
-| Lookup and catalog databases | `src/AccessCatalogService.cs` | `Ace` (ADODB helper), `FootprintLookupService` (table create, find, upsert, read all paths), `CatalogService` (family tables, columns, part-number reads, exists, insert, family hints) and `IssuanceLock`. |
+| Lookup and catalog databases | `src/AccessCatalogService.cs` | `Ace` (ADODB helper), `FootprintLookupService` (table create, find, upsert, read all paths), `CatalogService` (family tables, columns, part-number reads, exists, insert, family hints, and since 2026-11-12 `ReadTable` and `FindByKey` for the browser) and `IssuanceLock`. |
 | Configuration | `src/SettingsService.cs` | `SettingsService` (settings.json, path and workbook discovery, `.wdp` import) and `LibraryStandardService` (the JSON standard). |
-| Diagnostics | `src/DiagnosticsService.cs` | Builds the `LSELIBRARYDIAG` report, including the naming standard and catalog lines. |
-| Data shapes | `src/Models.cs` | Settings, standard, request, result, drawing info, icon menu model, audit findings, naming standard, part-number and catalog request/result types. |
+| Diagnostics | `src/DiagnosticsService.cs` | Builds the `LSELIBRARYDIAG` report, including the naming standard, catalog, company standards, browser and Vault lines. |
+| Data shapes | `src/Models.cs` | Settings, standard, request, result, drawing info, icon menu model, audit findings, naming standard, part-number and catalog request/result types, and the browser types (`CatalogRecord`, `StandardEntry`, `SelectedBlockInfo`, `AttributeChange`, `CatalogScope`). |
 
 Supporting files:
 
@@ -42,7 +46,7 @@ Supporting files:
 | `LSE.AutoCADElectrical.Librarian.csproj` | SDK-style project, `net8.0-windows`, x64, WinForms. AutoCAD assemblies from the install when present, otherwise the `AutoCAD.NET` 25.1.0 reference package at compile time only. |
 | `config/LseLibraryStandard.json` | The LSE library standard: naming rules, attribute rules, categories, menu root pages, family codes. Copied to the output folder. |
 | `config/LseNamingStandard.json` | Snapshot of the part-number naming standard parsed from the workbook (same shape as the Inventor add-in's file). Copied to the output folder; used only when the workbook cannot be reached. |
-| `bundle/LSE.Librarian.bundle/PackageContents.xml` | Autoloader manifest for `%APPDATA%\Autodesk\ApplicationPlugins`. |
+| `bundle/LSE.Librarian.bundle/PackageContents.xml` | Autoloader manifest for `%APPDATA%\Autodesk\ApplicationPlugins`; lists all eight commands. |
 
 ## 3. Dependency diagram
 
@@ -74,6 +78,7 @@ Supporting files:
  |                                 |-- CatalogTransactionService.Run -> default_cat.mdb (optional, last)
  |                                 |     |-- IssuanceLock.Acquire ......... <catalog folder>\LSE_PartNumber.lock
  |                                 |     |-- File.Copy backup ............. <LSE_Catalog_Backups>\<stamp>\default_cat.mdb
+ |                                 |     |-- VaultCatalogService.Checkout / Checkin / UndoCheckout (only when CatalogVaultPath is set)
  |                                 |     |-- CatalogService.ReadColumnStartingWith + PartNumberService.Preview
  |                                 |     '-- CatalogService.AddRecord, Exists, FindByColumn (read-back)
  |                                 '-- LibraryReport.txt (backup folder), settings.RecentItems
@@ -83,6 +88,13 @@ Supporting files:
  |                           '-- FootprintMappingService.Load (read only: CatalogService.ReadParts + FootprintLookupService.ReadMappings)
  |                           '-- FootprintMappingService.Execute -> LibraryLock, backup, EnsureTable/SetMapping, FindPlain read-back, FootprintMapReport.txt
  |                         (LSECATALOGADD can call the same Execute after its catalog insert; LibraryAuditService calls Load)
+ |-- LSECATALOG ---------> CatalogBrowserForm(settings, null) (modal, via Plugin.Browse)
+ |-- LSEASSIGNCOMPONENT -> ComponentAssignService.PromptForBlock -> CatalogBrowserForm(settings, block)
+ |                           |-- CatalogService.GetTables / GetFamilyDescriptions / ReadTable (read only, 20,000 rows per table)
+ |                           |-- CompanyStandardsService.Load / Save / Toggle -> CompanyStandards.json
+ |                           |-- ComponentAssignService.Preview / Apply -> attributes of the picked block (UNDO reverses it)
+ |                           |-- SettingsService.Save (Favorites, Recent)
+ |                           '-- "New record..." -> CatalogRecordForm -> CatalogTransactionService (the only catalog writer)
  |-- LSELIBRARYAUDIT ----> AuditForm (modal) -> LibraryAuditService.Run
  |                           |-- IconMenuService (both menus), NamingService, FootprintLookupService.ReadAllPaths
  |                           '-- DrawingInspectionService.Inspect + RuleCheckService (deep option only)
@@ -92,7 +104,7 @@ Supporting files:
  '-- LSELIBRARYDIAG -----> DiagnosticsService.BuildReport (also NamingWorkbookService.Load, CatalogService.GetTables)
 ```
 
-External systems touched: the file system (library folders, icon menu folder, backups, settings, temp exports, the parts catalog workbook read as a zip), AutoCAD's database API in-process (side databases, WBLOCK, editor prompt), ADODB over COM for `footprint_lookup.mdb` and `default_cat.mdb`. No Vault, no Excel automation, no network protocol beyond SMB file access.
+External systems touched: the file system (library folders, icon menu folder, backups, settings, temp exports, the parts catalog workbook read as a zip), AutoCAD's database API in-process (side databases, WBLOCK, editor prompt), ADODB over COM for `footprint_lookup.mdb` and `default_cat.mdb`. No Excel automation, no network protocol beyond SMB file access, and Vault only when `CatalogVaultPath` is set (the Vault SDK web services, called through `VaultCatalogService`).
 
 ## 4. End-to-end data flow
 
@@ -104,6 +116,8 @@ External systems touched: the file system (library folders, icon menu folder, ba
 6. `LSECATALOGADD` opens `CatalogRecordForm` stand-alone. **Add to catalog** validates, warns about description problems, previews if not yet done, confirms, then runs `CatalogTransactionService.Execute` with the log echoed into the dialog's run log; the message box shows the issued number and the backup folder.
 7. `LSELIBRARYAUDIT` runs `LibraryAuditService.Run` on open, lists findings, and when the user picks a drawing finding and presses **Open in Librarian** the audit form closes and the command opens the wizard on that drawing; a drawing already inside its library is registered in place (not copied).
 8. `LSEFOOTPRINTMAP` opens `FootprintMapForm`, which loads every LSE part of `default_cat.mdb` with its lookup state (read only). Mapping validates the chosen DWG, asks before replacing, then runs `FootprintMappingService.Execute`: lock, backup of `footprint_lookup.mdb`, `EnsureTable` and `SetMapping` per part, read-back, report; any failure restores the MDB. It is the second writer of the lookup MDB after the library transaction's step 14, never concurrent with it (both hold `LSE_Library.lock`). `LSECATALOGADD`'s optional footprint box calls the same `Execute` after the catalog insert, as a separate transaction.
+
+9. `LSECATALOG` opens `CatalogBrowserForm` with no block; `LSEASSIGNCOMPONENT` first asks for a block (`ComponentAssignService.PromptForBlock`) and opens the browser with it. The browser loads the family list and the company standards, reads the selected family table (`CatalogService.ReadTable`), and filters in memory. Selecting a record fills the attribute change preview; **Assign component** applies it (section 5.2).
 
 ## 5. The mutating transaction
 
@@ -141,6 +155,14 @@ Rollback, in order: restore the `.DAT` from its backup copy if it was written, r
 | 8 | Read back by MANUFACTURER + CATALOG and by part number (must be in the chosen table). | Restore, report, rethrow. |
 
 On failure the backup copy is copied back over the catalog (`Catalog rollback: PASS`, or `PASS (nothing had been written)`), `CatalogReport.txt` with the error is written into the backup folder, and the exception is rethrown. `Execute` (stand-alone) adds the header lines, logs `Status: SUCCESS` and writes `CatalogReport.txt` on success too. The lock is released when `Run` returns or throws.
+
+### 5.2 Catalog browser and assignment
+
+What is read: `default_cat.mdb` through `CatalogService` (`GetTables`, `GetFamilyDescriptions`, `ReadTable`, `FindByKey`), `CompanyStandards.json`, and the attributes of the block the engineer picked (`ComponentAssignService.ReadBlock`). What is written: the attributes of that one block, in the open drawing, and `settings.json` (`Favorites`, `Recent`), plus `CompanyStandards.json` when a standard is toggled. The browser never writes the catalog; its **New record...** button opens `CatalogRecordForm`, which goes through `CatalogTransactionService.Run` exactly as `LSECATALOGADD` does, so the write path of section 5.1 is unchanged and remains the only one.
+
+`ComponentAssignService.Apply` runs under a `LockDocument`, in one transaction: each attribute reference is opened for read and upgraded to write only when its value changes, a missing part attribute (`LsePartAttribute`) is appended as an invisible attribute definition plus reference, then commit and `Regen`. There is no log file or backup for it: AutoCAD UNDO is the way back. Attributes on the preserved list (`IsPreservedByDefault`) are left alone unless the engineer unticks Preserve in the preview.
+
+**Vault inside the catalog transaction.** With `CatalogVaultPath` set, `Run` and `SetSymbols` add two steps and one undo to section 5.1. `VaultReady` is checked first (from `Validate`, and at the top of `SetSymbols`): a Vault path with a missing `VaultExplorerPath` folder is refused before anything is touched. The order is then: validate, create the backup folder, take `LSE_PartNumber.lock`, copy the catalog into the backup folder, `VaultCatalogService.Checkout` (log `Vault checkout: PASS`), write, read back, `VaultCatalogService.Checkin` with the comment `LSE Librarian: add catalog record <MFG> <CAT> (<column>=<part>)` or `LSE Librarian: set WDBLKNAM on <n> catalog row(s)` (log `Vault checkin: PASS`). The backup is therefore taken before the checkout. On any failure the backup is copied back over the catalog first and then `VaultUndo` runs `UndoCheckout` (log `Vault undo checkout: PASS`, or `FAILED <reason>`; a failed undo does not mask the original error). With `CatalogVaultPath` blank none of this runs and no Vault line appears in any report.
 
 ## 6. The icon menu model
 
@@ -180,10 +202,13 @@ The audit treats every page reachable through `$S=` links from a kind's `menuRoo
 | Read the `.xlsx` directly, no Excel, no NuGet | The workbook is the document the catalog manager maintains, so the naming scheme has one source of truth; reading it as a zip of XML with the framework's own classes needs no Excel installation, no interop, no package at runtime, and works while the file is open in Excel. The JSON snapshot exists only for workstations that cannot reach the workbook. |
 | Legacy floor at 10^(SequenceChars-1) | Legacy ERP numbers kept under rule 7 fill all seven digits (`1633301`, `3238731`, `1691250`); numbers issued under the standard start at `0000001`. Treating a sequence at or above 1,000,000 as legacy keeps those numbers reserved without pushing the counter into the millions. It is an inference from the data (see README, known gaps), kept in one place (`PartNumberService.LegacyFloor`) so it can be changed. |
 | Count the sequence across every family table and the workbook tab | A prefix such as `45BUSFH` could have been issued in any family table, and the workbook already reserves numbers the catalog does not hold yet; checking both is the only way never to issue a number twice. |
+| Catalog browser merged into the Librarian instead of kept as a separate plugin | The separate Catalog Tools plugin duplicated the Librarian's catalog add (and its admin form required a hand-typed USER1). Merging leaves one catalog reader and one writer, one `settings.json`, one set of catalog paths and one Vault setting; the browser's **New record...** calls the existing transaction instead of a second writer. Only the unique features (browser, assignment, company standards, favourites, optional Vault checkout) moved. |
+| Browser and assignment write no catalog and keep no log | The assignment touches one block in the open drawing and AutoCAD UNDO reverses it; a backup, lock and report would add ceremony without protecting anything the undo stack does not. |
+| Vault checkout optional, reflection-loaded, catalog only | Not every workstation has the Vault client; a blank `CatalogVaultPath` leaves behaviour unchanged. Loading the SDK by reflection from `VaultExplorerPath` avoids a compile-time dependency on a version-specific installation. |
 | One writer per store | `LibraryTransactionService` writes libraries, menus and the lookup; `CatalogTransactionService` writes `default_cat.mdb`; each has its own backup, lock and restore. The library run calls the catalog run last so the two rollbacks compose without either knowing the other's files. |
 | Same lock file name as the Inventor add-in | `LSE_PartNumber.lock` next to the catalog means both tools serialise part-number issuance on the same file without a server. |
 | Two code densities | Services, models, settings form, diagnostics, plugin and the transactions (`NamingWorkbookService`, `PartNumberService`, `CatalogTransactionService` included) are compact; the wizard, the catalog record dialog, the audit form and the two AutoCAD-API services are expanded. This matches `../STYLE-GUIDE.docx` and the sibling projects. |
 
 ## 9. Relationship to the sibling projects
 
-`../acade-catalog-tools` (Catalog Tools), `../inventor-addin` (Footprint Tools) and `../acade-project-creator` (Project Tools) share the settings pattern (`SettingsService.Load`/`Save` with a `.tmp` move), the transaction pattern (line-per-step log, `Status: SUCCESS`, report file, rollback, lock file) and the form conventions. `Ace` and `FootprintLookupService` are copied from the Inventor add-in with the same shapes; if you fix a defect in one copy, check the other. No assembly is shared; each project ships alone. The Inventor add-in creates footprints and catalog rows for new part numbers; the Librarian files hand-drawn symbols, footprints and circuits, keeps the icon menus honest, and can now add the catalog row too. Both write `footprint_lookup.mdb` rows in the same form (table named after MANUFACTURER, `BLKNAM` = full DWG path), both take `LSE_PartNumber.lock` next to `default_cat.mdb` while issuing a number, and the Librarian's `LseNamingStandard.json` has the same shape as the Inventor add-in's naming file so that one loads here as well. The Librarian reads the naming scheme from the workbook itself; the Inventor add-in reads its JSON.
+`../inventor-addin` (Footprint Tools) and `../acade-project-creator` (Project Tools) share the settings pattern (`SettingsService.Load`/`Save` with a `.tmp` move), the transaction pattern (line-per-step log, `Status: SUCCESS`, report file, rollback, lock file) and the form conventions. `Ace` and `FootprintLookupService` are copied from the Inventor add-in with the same shapes; if you fix a defect in one copy, check the other. No assembly is shared; each project ships alone. The Inventor add-in creates footprints and catalog rows for new part numbers; the Librarian files hand-drawn symbols, footprints and circuits, keeps the icon menus honest, and can now add the catalog row too. The former `acade-catalog-tools` plugin was merged into this one on 2026-11-12 and is no longer a sibling; the Inventor add-in carries the twin of `VaultCatalogService` and `Ace`, so a defect fixed in one of those should be checked in the other. The two add-ins both write `footprint_lookup.mdb` rows in the same form (table named after MANUFACTURER, `BLKNAM` = full DWG path), both take `LSE_PartNumber.lock` next to `default_cat.mdb` while issuing a number, and the Librarian's `LseNamingStandard.json` has the same shape as the Inventor add-in's naming file so that one loads here as well. The Librarian reads the naming scheme from the workbook itself; the Inventor add-in reads its JSON.

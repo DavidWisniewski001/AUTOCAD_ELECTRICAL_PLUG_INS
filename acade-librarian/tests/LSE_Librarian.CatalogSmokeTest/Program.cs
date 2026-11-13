@@ -206,5 +206,46 @@ else Console.WriteLine("SKIP footprint mapping checks: pass footprint_lookup.mdb
     Check("the same batch succeeds when nothing fails (2 rows, one backup)", batch2.Written == 2 && Sym(r1) == "ZZ_STOCK_C" && Sym(r2) == "ZZ_STOCK_C" && RowDump(r1.PartNumber) == dump1 && RowDump(r2.PartNumber) == dump2 && RowCount() == count0);
     Check("symbol libraries untouched (3 files, nothing written)", Directory.GetFiles(symRoot, "*", SearchOption.AllDirectories).Length + Directory.GetFiles(stockRoot, "*", SearchOption.AllDirectories).Length == 3);
 }
+// ---- Catalog browser and component assignment (merged from LSE Catalog Tools 2026-11-12): the parts that need no AutoCAD ----
+{
+    string? Try(Action a) { try { a(); return null; } catch (Exception ex) { return ex.Message; } }
+    var rows = svc.ReadTable(table, 50);
+    Check("browser: ReadTable returns whole rows, every column a string, capped at the limit", rows.Count > 0 && rows.Count <= 50 && rows.All(r => r.TableName == table && r.Values.ContainsKey("CATALOG") && r.Values.ContainsKey("MANUFACTURER")));
+    string key1 = $"{table}|ZZ TEST MFR|ZZ-CATONLY-001".ToUpperInvariant();
+    var mine = svc.FindByKey(key1);
+    Check("browser: FindByKey finds the row added by Execute, with its part number", mine is not null && mine.Get("USER1") == r1.PartNumber && mine.Catalog == "ZZ-CATONLY-001", mine?.Get("USER1") ?? "(none)");
+    Check("browser: Key is TABLE|MANUFACTURER|CATALOG upper-cased", mine!.Key == key1);
+    Check("browser: FindByKey returns null for a short or unknown key", svc.FindByKey("nope") is null && svc.FindByKey(table + "|ZZ NOBODY|ZZ-NONE") is null);
+    string stdPath = Path.Combine(dir, "std", "CompanyStandards.json");
+    var stds = CompanyStandardsService.Load(stdPath);
+    Check("standards: missing file loads as an empty list", stds.Count == 0);
+    Check("standards: Toggle lists a record", CompanyStandardsService.Toggle(stds, key1, FamilyNames.Friendly(table)) && stds.Count == 1 && stds[0].Category.Length > 0);
+    CompanyStandardsService.Save(stdPath, stds);
+    var back = CompanyStandardsService.Load(stdPath);
+    Check("standards: round trip through JSON (folder created, status Company Standard)", File.Exists(stdPath) && back.Count == 1 && back[0].RecordKey == key1 && back[0].Status == "Company Standard" && !back[0].IsLegacy);
+    Check("standards: Find is case-insensitive, Toggle again delists", CompanyStandardsService.Find(back, key1.ToLowerInvariant()) is not null && !CompanyStandardsService.Toggle(back, key1, "") && back.Count == 0);
+    Check("standards: a blank path is refused on save", Try(() => CompanyStandardsService.Save("", stds)) is not null);
+    Check("family names: catalog description first, then the built-in name, then the code", FamilyNames.Friendly("PB", new Dictionary<string, string> { ["PB"] = "Push Buttons (catalog)" }) == "Push Buttons (catalog)" && FamilyNames.Friendly("PB") == "Pushbuttons" && FamilyNames.Friendly("ZZNOPE") == "ZZNOPE");
+    var rec = new CatalogRecord { TableName = "LT", Values = new(StringComparer.OrdinalIgnoreCase) { ["MANUFACTURER"] = "AB", ["CATALOG"] = "800T-PA16G", ["DESCRIPTION"] = "PILOT LIGHT GREEN 120V", ["TYPE"] = "LED", ["RATING"] = "120V", ["USER1"] = "47ABPL0000012", ["TEXTVALUE"] = "DESC2=GREEN LENS;INST=IGNORED", ["WDBLKNAM"] = "HLT1" } };
+    var attrs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["TAG1"] = "LT101", ["MFG"] = "", ["CAT"] = "old", ["DESC1"] = "", ["DESC2"] = "", ["COLOR"] = "", ["INST"] = "", ["LOC"] = "PANEL", ["XREF"] = "", ["WIRENO1"] = "", ["PINLIST"] = "" };
+    var cs = new AppSettings { LsePartColumn = "USER1", LsePartAttribute = "USER1" };
+    var changes = ComponentAssignService.PreviewChanges(attrs, rec, cs);
+    string P(string a) => changes.First(c => c.Attribute.Equals(a, StringComparison.OrdinalIgnoreCase)).Proposed;
+    bool Pre(string a) => changes.First(c => c.Attribute.Equals(a, StringComparison.OrdinalIgnoreCase)).Preserved;
+    Check("assign: MFG, CAT and DESC1 come from the record", P("MFG") == "AB" && P("CAT") == "800T-PA16G" && P("DESC1") == "PILOT LIGHT GREEN 120V");
+    Check("assign: TEXTVALUE KEY=VALUE pairs become attribute values", P("DESC2") == "GREEN LENS");
+    Check("assign: colour code inferred from the description", P("COLOR") == "G");
+    Check("assign: TAG1, LOC, INST, XREF, WIRE*, PIN* preserved with their current value (INST not taken from TEXTVALUE)", Pre("TAG1") && Pre("LOC") && Pre("INST") && Pre("XREF") && Pre("WIRENO1") && Pre("PINLIST") && P("TAG1") == "LT101" && P("LOC") == "PANEL" && P("INST") == "");
+    Check("assign: one change per block attribute plus the missing part attribute", changes.Count == attrs.Count + 1 && changes.Any(c => c.Attribute == "USER1" && c.Current == "(missing)" && c.Proposed == "47ABPL0000012" && !c.Preserved));
+    Check("assign: the configured block attribute receives the part number", ComponentAssignService.PreviewChanges(attrs, rec, new AppSettings { LsePartColumn = "USER1", LsePartAttribute = "lse_pn" }).Any(c => c.Attribute == "LSE_PN" && c.Proposed == "47ABPL0000012"));
+    Check("assign: the part number is read from the configured catalog column", ComponentAssignService.BuildMap(new CatalogRecord { TableName = "LT", Values = new(StringComparer.OrdinalIgnoreCase) { ["USER3"] = "47ABPL0000099" } }, new AppSettings { LsePartColumn = "USER3", LsePartAttribute = "USER1" })["USER1"] == "47ABPL0000099");
+    Check("assign: a block that already has the part attribute gets no (missing) row", !ComponentAssignService.PreviewChanges(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["USER1"] = "x" }, rec, cs).Any(c => c.Current == "(missing)"));
+    Check("assign: preserved-by-default rule", ComponentAssignService.IsPreservedByDefault("TAG") && ComponentAssignService.IsPreservedByDefault("XREFNO") && ComponentAssignService.IsPreservedByDefault("WIRENO") && ComponentAssignService.IsPreservedByDefault("PIN1") && !ComponentAssignService.IsPreservedByDefault("DESC1") && !ComponentAssignService.IsPreservedByDefault("RATING"));
+    Check("assign: FAMILY mismatch warns, WDBLKNAM mismatch warns, a match is silent", ComponentAssignService.Warning("PB", "HLT1R", rec).Contains("FAMILY") && ComponentAssignService.Warning("LT", "HPB11", rec).Contains("WDBLKNAM") && ComponentAssignService.Warning("LT", "HLT1R", rec).Length == 0 && ComponentAssignService.Warning("", "HLT1R", rec).Length == 0);
+    Check("assign: PartAttribute blank falls back to USER1, otherwise upper-cased", ComponentAssignService.PartAttribute(new AppSettings { LsePartAttribute = " " }) == "USER1" && ComponentAssignService.PartAttribute(new AppSettings { LsePartAttribute = "user2" }) == "USER2");
+    Check("vault: off when the catalog Vault path is blank, so no Vault step ran in any check above", !VaultCatalogService.Enabled(s) && !Directory.GetFiles(backups, "CatalogReport.txt", SearchOption.AllDirectories).Any(f => File.ReadAllText(f).Contains("Vault")));
+    err = Try(() => CatalogTransactionService.Execute(new AppSettings { CatalogPath = mdb, NamingWorkbookPath = wb, CatalogBackupFolder = backups, LsePartColumn = "USER1", CatalogVaultPath = "$/Designs/default_cat.mdb", VaultExplorerPath = Path.Combine(dir, "no-vault-sdk") }, n, pn, new CatalogAddRequest { TableName = table, Manufacturer = "ZZ TEST MFR", Catalog = "ZZ-VAULT-001", Description = q.Description }));
+    Check("vault: a Vault path without the SDK folder is refused before the backup and the lock", err is not null && err.Contains("Vault Explorer") && !svc.Exists(table, "ZZ TEST MFR", "ZZ-VAULT-001") && !File.Exists(Path.Combine(dir, "LSE_PartNumber.lock")), err ?? "");
+}
 Console.WriteLine($"{pass} passed, {fail} failed. Sandbox: {dir}");
 return fail == 0 ? 0 : 1;

@@ -2,11 +2,16 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace LSE.AutoCADElectrical.CatalogTools;
+namespace LSE.AutoCADElectrical.Librarian;
 
+// LSECATALOG / LSEASSIGNCOMPONENT: a curated view of default_cat.mdb (company standards, favourites, recent, full
+// catalog) with a preview of the attribute changes an assignment would make to the selected block. Merged from the
+// former LSE Catalog Tools plugin on 2026-11-12. Reads the catalog through CatalogService; the only catalog write it can
+// start is "New record...", which opens CatalogRecordForm (so CatalogTransactionService stays the only writer).
 public sealed class CatalogBrowserForm : Form
 {
     private readonly AppSettings settings;
+    private readonly string partColumn;
     private readonly SelectedBlockInfo? selectedBlock;
     private readonly TreeView navigation = new() { Dock = DockStyle.Fill, HideSelection = false };
     private readonly ComboBox familyBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
@@ -17,16 +22,18 @@ public sealed class CatalogBrowserForm : Form
     private readonly DataGridView catalogGrid = new();
     private readonly DataGridView changeGrid = new();
     private readonly Label statusLabel = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
-    private List<CatalogRecord> records = new();
     private readonly List<StandardEntry> standards;
+    private Dictionary<string, string> familyDescriptions = new(StringComparer.OrdinalIgnoreCase);
+    private List<CatalogRecord> records = new();
     private BindingList<AttributeChange> proposedChanges = new();
 
-    public CatalogBrowserForm(SelectedBlockInfo? block)
+    public CatalogBrowserForm(AppSettings settings, SelectedBlockInfo? block)
     {
+        this.settings = settings;
+        partColumn = CatalogTransactionService.PartColumn(settings);
         selectedBlock = block;
-        settings = SettingsService.Load();
-        standards = StandardsService.Load(settings.CompanyStandardsPath);
-        Text = block is null ? "LSE Electrical Components" : "Assign Component - " + block.BlockName;
+        standards = CompanyStandardsService.Load(settings.CompanyStandardsPath);
+        Text = block is null ? "LSE Librarian: catalog browser" : "LSE Librarian: assign component - " + block.BlockName;
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1750, 950);
         MinimumSize = new Size(1200, 700);
@@ -81,21 +88,23 @@ public sealed class CatalogBrowserForm : Form
         {
             Dock = DockStyle.Bottom,
             Height = 60,
-            ColumnCount = 6,
+            ColumnCount = 8,
             Padding = new Padding(8)
         };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        for (int index = 1; index < 6; index++)
+        for (int index = 1; index < 8; index++)
         {
-            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 155));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
         }
 
         footer.Controls.Add(statusLabel, 0, 0);
         footer.Controls.Add(CreateButton("Toggle favorite", ToggleFavorite), 1, 0);
-        footer.Controls.Add(CreateButton(selectedBlock is null ? "Select block" : "Change block", SelectBlock), 2, 0);
-        footer.Controls.Add(CreateButton("Assign component", Assign), 3, 0);
-        footer.Controls.Add(CreateButton("Refresh", LoadTable), 4, 0);
-        footer.Controls.Add(CreateButton("Close", Close), 5, 0);
+        footer.Controls.Add(CreateButton("Toggle company standard", ToggleStandard), 2, 0);
+        footer.Controls.Add(CreateButton("New record...", NewRecord), 3, 0);
+        footer.Controls.Add(CreateButton(selectedBlock is null ? "Select block" : "Change block", SelectBlock), 4, 0);
+        footer.Controls.Add(CreateButton("Assign component", Assign), 5, 0);
+        footer.Controls.Add(CreateButton("Refresh", LoadTable), 6, 0);
+        footer.Controls.Add(CreateButton("Close", Close), 7, 0);
 
         Controls.Add(verticalSplit);
         Controls.Add(leftPanel);
@@ -128,6 +137,7 @@ public sealed class CatalogBrowserForm : Form
         if (split.SplitterDistance > maximum) split.SplitterDistance = maximum;
         if (split.SplitterDistance < split.Panel1MinSize) split.SplitterDistance = split.Panel1MinSize;
     }
+
     private void ConfigureCatalogGrid()
     {
         catalogGrid.Dock = DockStyle.Fill;
@@ -147,7 +157,7 @@ public sealed class CatalogBrowserForm : Form
         catalogGrid.Columns.Add(TextColumn("Status", "Status", null, 105));
         catalogGrid.Columns.Add(TextColumn("Manufacturer", "Manufacturer", "Manufacturer", 130));
         catalogGrid.Columns.Add(TextColumn("Catalog", "Catalog", "Catalog", 190));
-        catalogGrid.Columns.Add(TextColumn("LSEPart", "LSE Part Number", "User1", 150));
+        catalogGrid.Columns.Add(TextColumn("LSEPart", "LSE Part Number (" + partColumn + ")", null, 150));
         catalogGrid.Columns.Add(new DataGridViewTextBoxColumn
         {
             Name = "Description",
@@ -159,15 +169,18 @@ public sealed class CatalogBrowserForm : Form
         });
         catalogGrid.Columns.Add(TextColumn("Type", "Type", "Type", 130));
         catalogGrid.Columns.Add(TextColumn("Rating", "Rating", "Rating", 115));
+        catalogGrid.Columns.Add(TextColumn("Symbol", "Symbol (WDBLKNAM)", "WdBlkNam", 120));
 
         catalogGrid.CellFormatting += (_, eventArgs) =>
         {
-            if (eventArgs.RowIndex >= 0 &&
-                catalogGrid.Columns[eventArgs.ColumnIndex].Name == "Status" &&
-                catalogGrid.Rows[eventArgs.RowIndex].DataBoundItem is CatalogRecord record)
+            if (eventArgs.RowIndex < 0 || catalogGrid.Rows[eventArgs.RowIndex].DataBoundItem is not CatalogRecord record)
             {
-                eventArgs.Value = StatusOf(record);
+                return;
             }
+
+            string column = catalogGrid.Columns[eventArgs.ColumnIndex].Name;
+            if (column == "Status") eventArgs.Value = StatusOf(record);
+            else if (column == "LSEPart") eventArgs.Value = record.Get(partColumn);
         };
         catalogGrid.SelectionChanged += (_, _) => RefreshChangePreview();
         catalogGrid.CellDoubleClick += (_, eventArgs) =>
@@ -239,11 +252,17 @@ public sealed class CatalogBrowserForm : Form
         {
             if (eventArgs.RowIndex < 0 || eventArgs.RowIndex >= proposedChanges.Count) return;
             AttributeChange change = proposedChanges[eventArgs.RowIndex];
-            if (changeGrid.Columns[eventArgs.ColumnIndex].Name == "Preserved" && change.Preserved)
+            if (changeGrid.Columns[eventArgs.ColumnIndex].Name != "Preserved") return;
+            if (change.Preserved)
             {
                 change.Proposed = change.Current;
-                changeGrid.InvalidateRow(eventArgs.RowIndex);
             }
+            else if (SelectedRecord() is CatalogRecord record &&
+                     ComponentAssignService.BuildMap(record, settings).TryGetValue(change.Attribute, out string? mapped))
+            {
+                change.Proposed = mapped;
+            }
+            changeGrid.InvalidateRow(eventArgs.RowIndex);
         };
         changeGrid.CurrentCellDirtyStateChanged += (_, _) =>
         {
@@ -254,11 +273,7 @@ public sealed class CatalogBrowserForm : Form
         };
     }
 
-    private static DataGridViewTextBoxColumn TextColumn(
-        string name,
-        string header,
-        string? property,
-        int width)
+    private static DataGridViewTextBoxColumn TextColumn(string name, string header, string? property, int width)
     {
         return new DataGridViewTextBoxColumn
         {
@@ -285,8 +300,10 @@ public sealed class CatalogBrowserForm : Form
         try
         {
             BuildNavigation();
-            List<string> tables = new AccessCatalogService(settings.CatalogPath).GetTables();
-            familyBox.DataSource = tables.Select(code => new FamilyItem(code, FamilyNames.Friendly(code))).ToList();
+            var catalog = new CatalogService(settings.CatalogPath);
+            List<string> tables = catalog.GetTables();
+            try { familyDescriptions = catalog.GetFamilyDescriptions(); } catch { familyDescriptions = new(StringComparer.OrdinalIgnoreCase); }
+            familyBox.DataSource = tables.Select(code => new FamilyItem(code, FamilyNames.Friendly(code, familyDescriptions))).ToList();
             familyBox.DisplayMember = nameof(FamilyItem.Name);
 
             if (selectedBlock is not null && !string.IsNullOrWhiteSpace(selectedBlock.Family))
@@ -301,7 +318,7 @@ public sealed class CatalogBrowserForm : Form
         }
         catch (System.Exception exception)
         {
-            MessageBox.Show(exception.Message, "Catalog Tools");
+            MessageBox.Show(this, exception.Message, "LSE Librarian");
         }
     }
 
@@ -312,21 +329,23 @@ public sealed class CatalogBrowserForm : Form
         navigation.Nodes.Add(new TreeNode("My Favorites") { Tag = CatalogScope.PersonalFavorites });
         navigation.Nodes.Add(new TreeNode("Recently Used") { Tag = CatalogScope.Recent });
         navigation.Nodes.Add(new TreeNode("Full Catalog") { Tag = CatalogScope.AllCatalog });
-        navigation.SelectedNode = navigation.Nodes[0];
+        navigation.SelectedNode = navigation.Nodes[standards.Count == 0 ? 3 : 0];
     }
+
+    private FamilyItem? CurrentFamily() => familyBox.SelectedItem as FamilyItem;
 
     private void LoadTable()
     {
-        if (familyBox.SelectedItem is not FamilyItem family) return;
+        if (CurrentFamily() is not FamilyItem family) return;
         try
         {
-            records = new AccessCatalogService(settings.CatalogPath).ReadTable(family.Code);
+            records = new CatalogService(settings.CatalogPath).ReadTable(family.Code);
             FillFilters();
             ApplyFilter();
         }
         catch (System.Exception exception)
         {
-            MessageBox.Show(exception.Message, "Catalog Tools");
+            MessageBox.Show(this, exception.Message, "LSE Librarian");
         }
     }
 
@@ -343,7 +362,7 @@ public sealed class CatalogBrowserForm : Form
         var values = new List<string> { "(All)" };
         values.AddRange(input.Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(value => value));
+            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase));
         box.DataSource = values;
         box.SelectedItem = values.Contains(prior) ? prior : "(All)";
     }
@@ -357,9 +376,7 @@ public sealed class CatalogBrowserForm : Form
 
         if (scope == CatalogScope.CompanyStandards)
         {
-            query = query.Where(record => standards.Any(entry =>
-                entry.RecordKey.Equals(record.Key, StringComparison.OrdinalIgnoreCase) &&
-                !entry.Status.Equals("Legacy", StringComparison.OrdinalIgnoreCase)));
+            query = query.Where(record => CompanyStandardsService.Find(standards, record.Key) is { IsLegacy: false });
         }
         if (scope == CatalogScope.PersonalFavorites)
         {
@@ -383,7 +400,8 @@ public sealed class CatalogBrowserForm : Form
 
         List<CatalogRecord> displayed = query.ToList();
         catalogGrid.DataSource = new BindingList<CatalogRecord>(displayed);
-        statusLabel.Text = $"{displayed.Count:n0} shown of {records.Count:n0} | {settings.CatalogPath}";
+        statusLabel.Text = $"{displayed.Count:n0} shown of {records.Count:n0} in {CurrentFamily()?.Name} | {settings.CatalogPath}" +
+                           (records.Count >= 20000 ? " | first 20,000 rows only; narrow with the filters" : string.Empty);
     }
 
     private static IEnumerable<CatalogRecord> ApplyComboFilter(
@@ -401,13 +419,10 @@ public sealed class CatalogBrowserForm : Form
 
     private string StatusOf(CatalogRecord record)
     {
-        StandardEntry? standard = standards.FirstOrDefault(entry =>
-            entry.RecordKey.Equals(record.Key, StringComparison.OrdinalIgnoreCase));
+        StandardEntry? standard = CompanyStandardsService.Find(standards, record.Key);
         if (standard is not null)
         {
-            return standard.Status.Equals("Legacy", StringComparison.OrdinalIgnoreCase)
-                ? "Legacy"
-                : "Standard";
+            return standard.IsLegacy ? "Legacy" : "Standard";
         }
         if (settings.Favorites.Contains(record.Key, StringComparer.OrdinalIgnoreCase)) return "Favorite";
         return "Catalog";
@@ -419,7 +434,7 @@ public sealed class CatalogBrowserForm : Form
         proposedChanges = new BindingList<AttributeChange>(
             record is null
                 ? new List<AttributeChange>()
-                : AutoCadComponentService.Preview(selectedBlock, record, settings));
+                : ComponentAssignService.Preview(selectedBlock, record, settings));
         changeGrid.DataSource = proposedChanges;
     }
 
@@ -428,13 +443,17 @@ public sealed class CatalogBrowserForm : Form
         Hide();
         try
         {
-            SelectedBlockInfo? block = AutoCadComponentService.PromptForBlock();
+            SelectedBlockInfo? block = ComponentAssignService.PromptForBlock();
             if (block is not null)
             {
-                using var replacement = new CatalogBrowserForm(block);
+                using var replacement = new CatalogBrowserForm(settings, block);
                 replacement.ShowDialog();
                 Close();
             }
+        }
+        catch (System.Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, "LSE Librarian");
         }
         finally
         {
@@ -444,39 +463,47 @@ public sealed class CatalogBrowserForm : Form
 
     private void Assign()
     {
-        changeGrid.EndEdit();
-        CatalogRecord? record = SelectedRecord();
-        if (record is null) return;
-
-        SelectedBlockInfo? block = selectedBlock;
-        if (block is null)
+        try
         {
-            Hide();
-            try { block = AutoCadComponentService.PromptForBlock(); }
-            finally { Show(); }
-        }
-        if (block is null) return;
+            changeGrid.EndEdit();
+            CatalogRecord? record = SelectedRecord();
+            if (record is null) return;
 
-        string warning = AutoCadComponentService.CompatibilityWarning(block, record);
-        if (warning.Length > 0 && MessageBox.Show(
-                warning + "\r\n\r\nApply anyway?",
-                "Compatibility warning",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning) != DialogResult.Yes)
-        {
-            return;
-        }
+            SelectedBlockInfo? block = selectedBlock;
+            if (block is null)
+            {
+                Hide();
+                try { block = ComponentAssignService.PromptForBlock(); }
+                finally { Show(); }
+            }
+            if (block is null) return;
 
-        AutoCadComponentService.Apply(block, record, settings, proposedChanges.ToList());
-        settings.Recent.RemoveAll(key => key.Equals(record.Key, StringComparison.OrdinalIgnoreCase));
-        settings.Recent.Insert(0, record.Key);
-        if (settings.Recent.Count > 25)
-        {
-            settings.Recent.RemoveRange(25, settings.Recent.Count - 25);
+            string warning = ComponentAssignService.CompatibilityWarning(block, record);
+            if (warning.Length > 0 && MessageBox.Show(
+                    this,
+                    warning + "\r\n\r\nApply anyway?",
+                    "Compatibility warning",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning) != DialogResult.Yes)
+            {
+                return;
+            }
+
+            ComponentAssignService.Apply(block, record, settings, proposedChanges.ToList());
+            settings.Recent.RemoveAll(key => key.Equals(record.Key, StringComparison.OrdinalIgnoreCase));
+            settings.Recent.Insert(0, record.Key);
+            if (settings.Recent.Count > 25)
+            {
+                settings.Recent.RemoveRange(25, settings.Recent.Count - 25);
+            }
+            SettingsService.Save(settings);
+            statusLabel.Text = $"Assigned {record.Manufacturer} {record.Catalog}. {partColumn}/LSE part number: {record.Get(partColumn)}";
+            RefreshChangePreview();
         }
-        SettingsService.Save(settings);
-        statusLabel.Text = $"Assigned {record.Manufacturer} {record.Catalog}. USER1/LSE part number: {record.User1}";
-        RefreshChangePreview();
+        catch (System.Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, "LSE Librarian", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void ToggleFavorite()
@@ -489,6 +516,43 @@ public sealed class CatalogBrowserForm : Form
         }
         SettingsService.Save(settings);
         ApplyFilter();
+    }
+
+    // Lists or delists the selected record in CompanyStandards.json (shared when Settings points at a shared file).
+    private void ToggleStandard()
+    {
+        try
+        {
+            CatalogRecord? record = SelectedRecord();
+            if (record is null) return;
+            bool listed = CompanyStandardsService.Toggle(standards, record.Key, FamilyNames.Friendly(record.TableName, familyDescriptions));
+            CompanyStandardsService.Save(settings.CompanyStandardsPath, standards);
+            statusLabel.Text = (listed ? "Listed as a company standard: " : "Removed from the company standards: ") +
+                               $"{record.Manufacturer} {record.Catalog} ({settings.CompanyStandardsPath})";
+            ApplyFilter();
+        }
+        catch (System.Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, "LSE Librarian", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    // Opens the catalog record dialog (LSECATALOGADD) pre-set to the current family table, then reloads the table.
+    private void NewRecord()
+    {
+        try
+        {
+            var prefill = new CatalogAddRequest { TableName = CurrentFamily()?.Code ?? string.Empty };
+            using (var form = new CatalogRecordForm(settings, false, prefill, null))
+            {
+                form.ShowDialog(this);
+            }
+            LoadTable();
+        }
+        catch (System.Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, "LSE Librarian", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private sealed record FamilyItem(string Code, string Name);

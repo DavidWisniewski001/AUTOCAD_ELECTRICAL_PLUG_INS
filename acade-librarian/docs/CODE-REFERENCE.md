@@ -4,7 +4,7 @@ Maintained by DCW. Last reviewed 2026-11-12.
 
 Every file, type and public member of `LSE.AutoCADElectrical.Librarian`. Private helpers are summarised. Read [ARCHITECTURE.md](ARCHITECTURE.md) first for how the pieces fit.
 
-Density: `Models.cs`, `SettingsService.cs`, `AccessCatalogService.cs`, `NamingService.cs`, `NamingWorkbookService.cs`, `PartNumberService.cs`, `IconMenuService.cs`, `LibraryTransactionService.cs`, `CatalogTransactionService.cs`, `LibraryAuditService.cs`, `DiagnosticsService.cs`, `LibrarySettingsForm.cs` and `Plugin.cs` are compact (one member per line). `DrawingInspectionService.cs`, `IconRenderService.cs`, `LibrarianForm.cs`, `CatalogRecordForm.cs` and `AuditForm.cs` are expanded. Eighteen source files in all.
+Density: `Models.cs`, `SettingsService.cs`, `AccessCatalogService.cs`, `NamingService.cs`, `NamingWorkbookService.cs`, `PartNumberService.cs`, `IconMenuService.cs`, `LibraryTransactionService.cs`, `CatalogTransactionService.cs`, `LibraryAuditService.cs`, `DiagnosticsService.cs`, `LibrarySettingsForm.cs` and `Plugin.cs` are compact (one member per line). `DrawingInspectionService.cs`, `IconRenderService.cs`, `LibrarianForm.cs`, `CatalogRecordForm.cs` and `AuditForm.cs` are expanded, and since 2026-11-12 so are `CatalogBrowserForm.cs` and `ComponentAssignService.cs`; `CompanyStandardsService.cs` and `VaultCatalogService.cs` are compact. Twenty-four source files in all (the four new ones are `CatalogBrowserForm.cs`, `ComponentAssignService.cs`, `CompanyStandardsService.cs`, `VaultCatalogService.cs`).
 
 ## src/Models.cs
 
@@ -13,7 +13,12 @@ Density: `Models.cs`, `SettingsService.cs`, `AccessCatalogService.cs`, `NamingSe
 | `enum LibraryKind` | `SchematicSymbol, PanelFootprint, Nameplate, UserCircuit` | Keys of `kinds` in the JSON. |
 | `enum IconSource` | `Render, Thumbnail, ExistingImage, ImageFile, None` | Where the icon image comes from. |
 | `enum Severity` | `Error, Warning, Info` | Ordered; the audit filter uses `<=`. |
-| `sealed class AppSettings` | folder and file properties listed in [DATA-STORES.md](DATA-STORES.md); `IconPixels`, `DefaultSeries`, `RegisterFootprintLookup`, `DeepAudit`, `AuditStockEntries`, `RecentItems`; catalog record properties `NamingWorkbookPath`, `NamingStandardPath`, `CatalogBackupFolder`, `LsePartColumn` (`USER1`), `OfferCatalogRecord` (true), `PurchaseDescriptionInUser2` (true); computed `SchematicMenuPath`, `PanelMenuPath`, `ImagesFolder`; `RootFor(LibraryKind)`, `MenuPathFor(KindRule)` | The one settings POCO. |
+| `sealed class AppSettings` | folder and file properties listed in [DATA-STORES.md](DATA-STORES.md); `IconPixels`, `DefaultSeries`, `RegisterFootprintLookup`, `DeepAudit`, `AuditStockEntries`, `RecentItems`; catalog record properties `NamingWorkbookPath`, `NamingStandardPath`, `CatalogBackupFolder`, `LsePartColumn` (`USER1`), `OfferCatalogRecord` (true), `PurchaseDescriptionInUser2` (true); browser and Vault properties (2026-11-12) `CompanyStandardsPath` (default set in `SettingsService.Load`), `LsePartAttribute` (`USER1`; the block attribute that receives the part number, distinct from `LsePartColumn`), `Favorites` and `Recent` (lists of `CatalogRecord.Key`, `Recent` at most 25, most recent first), `VaultExplorerPath` (`C:\Program Files\Autodesk\Vault Client 2026\Explorer`), `VaultServer` (`lse-cep-sql`), `VaultName` (`Lake_Shore_E_Vault`), `CatalogVaultPath` (blank = no Vault step); computed `SchematicMenuPath`, `PanelMenuPath`, `ImagesFolder`; `RootFor(LibraryKind)`, `MenuPathFor(KindRule)` | The one settings POCO. |
+| `enum CatalogScope` | `CompanyStandards, PersonalFavorites, Recent, AllCatalog` | The four tree scopes of the browser. |
+| `sealed class CatalogRecord` | `TableName`; `Values` (every column as a trimmed string, case-insensitive keys); shortcuts `Catalog`, `Manufacturer`, `Description`, `Type`, `Rating`, `User1`, `TextValue`, `WdBlkNam`; `Get(column)`; `Key` = `TABLE\|MANUFACTURER\|CATALOG` upper-cased | One catalog row as the browser sees it. |
+| `sealed class StandardEntry` | `RecordKey`, `Category` (`Uncategorized`), `Status` (`Company Standard` or `Legacy`), `Notes`; `IsLegacy` | One element of `CompanyStandards.json`. |
+| `sealed class SelectedBlockInfo` | `Id` (`ObjectId`), `BlockName`, `Attributes` (tag to value), `Family` (the FAMILY attribute) | The block picked for assignment. |
+| `sealed class AttributeChange` | `Attribute`, `Current`, `Proposed`, `Preserved` | One row of the attribute change preview. |
 | `sealed class LibraryStandard` | `Source`, `ImagePrefix`, `IgnoreFolders`, `Series`, `SymbolFamilies`, `Kinds`; `Rule(LibraryKind)` throws when the kind is missing | Deserialised JSON. |
 | `sealed class KindRule` | `DisplayName`, `Menu`, `Prefixes`, `NamePattern`, `NameExample`, `NameHelp`, `MaxNameLength`, `RequiredAttributes`, `RecommendedAttributes`, `RequiredAttributePatterns`, `RecommendedAttributePatterns`, `ForbiddenBlocks`, `ActionTemplate`, `MenuRootPages`, `Categories`; `IsPanel` | One per kind. |
 | `sealed class LibraryCategory` | `Name`, `Folder`, `MenuPage`; `ToString()` = name | Combo item. |
@@ -100,6 +105,9 @@ Copied from the Inventor add-in. `Open(path)` (provider fallback ACE 16, ACE 12,
 | `Dictionary<string,int> GetColumns(string table)` | Column name → `DefinedSize` (0 = memo or unknown) from `SELECT TOP 1 *`. |
 | `List<(Value, Table)> ReadColumnStartingWith(string column, string prefix)` | Every non-blank value of `[column] LIKE 'prefix%'` with its table, across all family tables; unreadable tables skipped. |
 | `List<(Table, Manufacturer, Catalog, Part, Description)> ReadParts(string partColumn)` | Every row whose part column is not empty, across the family tables (tables without the column are skipped). Read only; feeds `FootprintMappingService.Load`. |
+| `List<CatalogRecord> ReadTable(string table, int limit = 20000)` | `SELECT TOP limit *` from one family table (table name validated); every column of every row becomes a trimmed string in `CatalogRecord.Values`. Feeds the browser. Read only. |
+| `CatalogRecord? FindByKey(string key)` | Direct `SELECT TOP 1` by MANUFACTURER and CATALOG from a `TABLE\|MANUFACTURER\|CATALOG` key; null for a malformed key (fewer than three parts) or an unknown record. |
+| `List<CatalogRecord> Query(string table, string sql)` (private) | Runs the SELECT and maps each row; shared by the two members above. |
 | `List<string> ReadDistinct(string table, string column)` | Sorted distinct non-null values (used for the MANUFACTURER list). |
 | `bool Exists(string table, string mfg, string cat)` | Row with that `MANUFACTURER` and `CATALOG`. |
 | `(Table, Manufacturer, Catalog)? FindByColumn(string column, string value)` | First table holding `[column] = value`, or null. |
@@ -163,11 +171,14 @@ Symbol link (2026-11-12): `string ResolveSymbol(AppSettings, LibraryStandard, st
 |---|---|
 | `string BackupRoot(AppSettings)` | `CatalogBackupFolder`, or `<catalog folder>\LSE_Catalog_Backups` when blank. |
 | `string PartColumn(AppSettings)` | `LsePartColumn` upper-cased, `USER1` when blank. |
+| `void VaultReady(AppSettings)` (private) | When `VaultCatalogService.Enabled` and the `VaultExplorerPath` folder does not exist, throws "A catalog path in Vault is set but the Vault Explorer folder was not found: ... (LSELIBRARYSETTINGS)." Called from `Validate` and at the top of `SetSymbols`, before the backup and the lock. |
+| `void VaultUndo(AppSettings, bool vault, Action<string> log)` (private) | Error path only, after the file rollback: when a checkout is held, `VaultCatalogService.UndoCheckout` and log `Vault undo checkout: PASS` or `Vault undo checkout: FAILED <reason>`; never throws. |
 | `void Validate(AppSettings, NamingStandard, PartNumberRequest, CatalogAddRequest)` | Catalog path set and exists, part column valid, tab exists, `PartNumberService.Validate`, type code defined on the tab, family table chosen and valid, MANUFACTURER and CATALOG present (24, 60), description problems other than the 100-character warning, TYPE/RATING/VOLTAGE/USER2/USER3 at most 100, TEXTVALUE and WEBLINK 255, WDBLKNAM 60, WEBLINK starting with `http://` or `https://`. |
 | `PartNumberPreview Preview(AppSettings, NamingStandard, PartNumberRequest)` | Read-only: existing values of the part column with the prefix from every table, plus the tab's `KnownPartNumbers`, through `PartNumberService.Preview`. |
 | `List<(Table, Count)> FamilyUsage(AppSettings, NamingStandard, string category)` | Family tables holding standard-form numbers with that category code, most used first. Drives the family hint in the dialog. |
 | `CatalogAddResult Execute(AppSettings, NamingStandard, PartNumberRequest, CatalogAddRequest, Action<string>? progress)` | Stand-alone run: `Validate`, header lines (started, catalog, naming source, record, prefix and tab), `Run`, `Status: SUCCESS`, `CatalogReport.txt` into the backup folder, `Report` = the log. |
-| `CatalogAddResult Run(AppSettings, NamingStandard, PartNumberRequest, CatalogAddRequest, Action<string> log)` | The core, also called by `LibraryTransactionService`: `Validate`; create `<BackupRoot>\<yyyyMMdd_HHmmss>\` (suffix `_n` if taken); `IssuanceLock.Acquire`; copy the catalog into the backup; read existing numbers; `PartNumberService.Preview`; refuse an existing part number (`FindByColumn`) or an existing MANUFACTURER + CATALOG (`Exists`); set `User1`, `AddRecord`; read back both ways; log `Catalog insert into <table> (<column>=<number>, <mfg> <catalog>): PASS`. On any exception: log `ERROR:`, copy the backup over the catalog (`Catalog rollback: PASS`, or `PASS (nothing had been written)`, or `FAILED ...`), write `CatalogReport.txt` with the error, rethrow. |
+| `CatalogAddResult Run(AppSettings, NamingStandard, PartNumberRequest, CatalogAddRequest, Action<string> log)` | The core, also called by `LibraryTransactionService`: `Validate`; create `<BackupRoot>\<yyyyMMdd_HHmmss>\` (suffix `_n` if taken); `IssuanceLock.Acquire`; copy the catalog into the backup; read existing numbers; `PartNumberService.Preview`; refuse an existing part number (`FindByColumn`) or an existing MANUFACTURER + CATALOG (`Exists`); set `User1`, `AddRecord`; read back both ways; log `Catalog insert into <table> (<column>=<number>, <mfg> <catalog>): PASS`. With `CatalogVaultPath` set (2026-11-12): after the backup copy, `VaultCatalogService.Checkout` and log `Vault checkout: PASS`; after the read-back, `Checkin` with the comment `LSE Librarian: add catalog record <MFG> <CAT> (<column>=<part>)` and log `Vault checkin: PASS`. On any exception: log `ERROR:`, copy the backup over the catalog (`Catalog rollback: PASS`, or `PASS (nothing had been written)`, or `FAILED ...`), then `VaultUndo` when a checkout is held, write `CatalogReport.txt` with the error, rethrow. |
+| `SetSymbols` Vault steps (2026-11-12) | Same pattern as `Run`: `VaultReady` first; after the backup and lock, `Checkout` (`Vault checkout: PASS`); after the WDBLKNAM read-back, `Checkin` with `LSE Librarian: set WDBLKNAM on <n> catalog row(s)` (`Vault checkin: PASS`); on failure the file rollback, then `VaultUndo`. With `CatalogVaultPath` blank no Vault line appears in any report. |
 
 ## src/CatalogRecordForm.cs
 
@@ -217,6 +228,81 @@ Maps catalog parts (MANUFACTURER + CATALOG) to footprint DWGs in `footprint_look
 ### `sealed class FootprintMapForm : Form`
 
 `LSEFOOTPRINTMAP`. Toolbar (Reload, status filter defaulting to Unmapped, family filter, text filter), a read-only multi-select grid of `FootprintMapRow`, the footprint path box with **Browse...** (starts in the footprint library), **Map selected parts** and a run log; since 2026-11-12 also a Symbol (WDBLKNAM) column, a Symbol filter, a schematic symbol box with **Browse...** (starts in the symbol library) and **Set symbol** (asks before replacing a non-empty symbol, default No, then before writing). Asks before replacing existing mappings (default No) and before writing; repeats of one MANUFACTURER and CATALOG in the selection are collapsed. Load and map run on the UI thread with a wait cursor (no background thread). Expanded code style.
+
+## src/CatalogBrowserForm.cs
+
+### `sealed class CatalogBrowserForm : Form`
+
+Expanded style. The browser behind `LSECATALOG` and `LSEASSIGNCOMPONENT` (merged from LSE Catalog Tools, 2026-11-12). Constructor `CatalogBrowserForm(AppSettings settings, SelectedBlockInfo? block)`. Reads the catalog; its only writes are block attributes (through `ComponentAssignService.Apply`), `settings.json` and `CompanyStandards.json`.
+
+| Member (all private except the constructor) | Behaviour |
+|---|---|
+| `BuildInterface`, `ConfigureCatalogGrid`, `ConfigureChangeGrid` | Left tree, a filter row (Family, Manufacturer, Type, Rating combos and a search box over every column), the record grid (Status, Manufacturer, Catalog, "LSE Part Number (<part column>)", Description, Type, Rating, Symbol (WDBLKNAM)), the change grid (Attribute, Current, Proposed editable, Preserve), the button row. Double-clicking a record row calls `Assign`. Ticking Preserve resets that row's Proposed to Current. |
+| `LoadCatalog` | `CatalogService.GetTables` and `GetFamilyDescriptions` (a missing `_FAMILY_DESCRIPTION` is tolerated); fills the Family combo with `FamilyNames.Friendly`; with a block whose FAMILY matches a table, selects that table. |
+| `BuildNavigation` | Four nodes tagged with `CatalogScope`; selects Full Catalog when `CompanyStandards.json` is empty, else Company Standards. |
+| `LoadTable` | `CatalogService.ReadTable(family code)` (20,000 rows at most), refills the filters, applies the filter. |
+| `ApplyFilter`, `StatusOf` | Filters in memory by scope, combos and search text. Status is `Legacy` or `Standard` (company standards entry), `Favorite`, else `Catalog`. |
+| `RefreshChangePreview` | `ComponentAssignService.Preview(selectedBlock, record, settings)` into a `BindingList<AttributeChange>`; empty without a block. |
+| `SelectBlock` | Hides the form, `PromptForBlock`, and when a block was picked opens a replacement browser on it and closes this one; the button reads "Change block" once a block is held. |
+| `Assign` | Ends cell edit, takes the selected record, asks for a block when none is held, shows `CompatibilityWarning` as a Yes/No prompt ("Apply anyway?"), calls `Apply` with the grid's changes, moves the record key to the top of `Recent` (25 kept), saves settings, updates the status line. Errors show a message box titled "LSE Librarian". |
+| `ToggleFavorite` | Adds or removes the key in `settings.Favorites`, saves settings. |
+| `ToggleStandard` | `CompanyStandardsService.Toggle` (category = the family's friendly name) then `Save(settings.CompanyStandardsPath, ...)`; the status line says what happened. |
+| `NewRecord` | Opens `CatalogRecordForm(settings, false, new CatalogAddRequest{TableName = current family}, null)` modally, then `LoadTable`. The write goes through `CatalogTransactionService`. |
+
+## src/ComponentAssignService.cs
+
+### `static class ComponentAssignService`
+
+Expanded style. Everything that touches a block's attributes. Pure parts (`PreviewChanges`, `BuildMap`, `InferColorCode`, `IsPreservedByDefault`, `ParseTextValue`, `Warning`) are covered by the smoke test; the AutoCAD parts (`PromptForBlock`, `ReadBlock`, `Apply`) are not.
+
+| Member | Behaviour |
+|---|---|
+| `string PartAttribute(AppSettings)` | `LsePartAttribute` upper-cased, `USER1` when blank. |
+| `SelectedBlockInfo? PromptForBlock()` | Throws "No active drawing." without a document; `GetEntity` limited to `BlockReference` ("Select an AutoCAD Electrical component block: "); null when cancelled; else `ReadBlock`. |
+| `SelectedBlockInfo ReadBlock(ObjectId)` | Read-only transaction: block definition name and every attribute reference tag and text. |
+| `List<AttributeChange> Preview(SelectedBlockInfo?, CatalogRecord, AppSettings)` | Empty for a null block, else `PreviewChanges(block.Attributes, ...)`. |
+| `List<AttributeChange> PreviewChanges(IReadOnlyDictionary<string,string> attributes, CatalogRecord, AppSettings)` | Pure. One row per attribute the block has (sorted by tag): preserved tags keep the current value; others take the `BuildMap` value when there is one. When the block lacks the part attribute and the record has a part number, adds a row with Current `(missing)`. |
+| `void Apply(SelectedBlockInfo, CatalogRecord, AppSettings, IEnumerable<AttributeChange>)` | Throws "No active drawing." without a document. `LockDocument`, one transaction: the block opened for write, each attribute reference opened for read and upgraded only when a non-preserved change differs from the current text; changes marked `(missing)` are appended by `EnsureHiddenAttribute` (invisible attribute definition on the block definition plus an invisible attribute reference); commit, then `Editor.Regen()`. No backup and no log: UNDO reverses it. |
+| `Dictionary<string,string> BuildMap(CatalogRecord, AppSettings)` | `MFG`, `MANUFACTURER` <- MANUFACTURER; `CAT`, `CATALOG` <- CATALOG; `DESC`, `DESC1` <- DESCRIPTION; `RATING`; `TYPE`; `USER1` <- USER1; `LSE_PART_NUMBER` and `PartAttribute(settings)` <- the part column (`CatalogTransactionService.PartColumn`); `COLOR` <- `InferColorCode` when not blank; then `ParseTextValue(record.TextValue)` pairs override. Case-insensitive keys. |
+| `string InferColorCode(CatalogRecord)` | First of GREEN G, RED R, YELLOW Y, BLUE B, WHITE W, CLEAR C, AMBER A, ORANGE O, BLACK K found (case-insensitive substring) in DESCRIPTION, TYPE, RATING, CATALOG, MISCELLANEOUS1, MISCELLANEOUS2; empty when none. |
+| `bool IsPreservedByDefault(string tag)` | In `DefaultPreserve` (`TAG`, `TAG1`, `TAG2`, `LOC`, `INST`, `FAMILY`, `XREF`, `WDTAGALT`), or starts with `X`, or contains `WIRE` or `PIN`. |
+| `Dictionary<string,string> ParseTextValue(string)` | `KEY=VALUE;KEY=VALUE` into a case-insensitive dictionary; tokens without `=` or with an empty key are ignored. |
+| `string CompatibilityWarning(SelectedBlockInfo?, CatalogRecord)` | Empty for a null block, else `Warning(block.Family, block.BlockName, record)`. |
+| `string Warning(string family, string blockName, CatalogRecord)` | Pure. A message when the family is not blank and neither contains the other with the record's table name; else a message when the record's WDBLKNAM is not blank and not contained in the block name; else empty. |
+
+## src/CompanyStandardsService.cs
+
+Compact. Two static classes.
+
+### `static class CompanyStandardsService`
+
+| Member | Behaviour |
+|---|---|
+| `List<StandardEntry> Load(string path)` | Missing file or blank path gives an empty list; a file that cannot be parsed also gives an empty list; never throws. JSON options: indented, case-insensitive names, comments and trailing commas tolerated. |
+| `void Save(string path, List<StandardEntry>)` | Blank path throws "The company standards JSON path is not set (LSELIBRARYSETTINGS)."; creates the folder; writes `<path>.tmp` then `File.Move` with overwrite. |
+| `StandardEntry? Find(List<StandardEntry>, string key)` | Case-insensitive on `RecordKey`. |
+| `bool Toggle(List<StandardEntry>, string key, string category)` | Removes an existing entry (legacy or not) and returns false, or adds a `Company Standard` entry (category `Uncategorized` when blank) and returns true. |
+
+### `static class FamilyNames`
+
+| Member | Behaviour |
+|---|---|
+| `string Friendly(string table, IReadOnlyDictionary<string,string>? descriptions = null)` | The catalog's `_FAMILY_DESCRIPTION` text when present and not blank, else the built-in name, else the code. |
+| `IReadOnlyDictionary<string,string> BuiltIn` | TRMS Terminal Blocks, PB Pushbuttons, CR Control Relays, CB Circuit Breakers, DISC Disconnects, FU Fuses, LT Pilot Lights, MOT Motors, PLCIO PLC I/O, PS Power Supplies, SS Selector Switches, VFD Variable Frequency Drives, MISC_CAT Miscellaneous. |
+
+## src/VaultCatalogService.cs
+
+### `static class VaultCatalogService`
+
+Compact. Optional Vault step for `default_cat.mdb`, used only by `CatalogTransactionService`. The Vault SDK assemblies (`Autodesk.Connectivity.WebServices.dll`, `Autodesk.DataManagement.Client.Framework.Vault.dll`, `Autodesk.DataManagement.Client.Framework.dll`) are loaded with `Assembly.LoadFrom` from `VaultExplorerPath`; there is no compile-time reference. Windows authentication. The Inventor add-in carries the same code. Unverified against a live Vault.
+
+| Member | Behaviour |
+|---|---|
+| `bool Enabled(AppSettings)` | `CatalogVaultPath` is not blank. |
+| `Connect` (private) | Throws "Vault Explorer SDK folder not found: ..." when the folder is missing; loads the assemblies; builds the web service manager from the server identity (`http://<VaultServer>`, `VaultName`); throws "Could not obtain Vault server identity." and "Catalog was not found in Vault: <path>" as the case may be; returns the manager, document service and the latest file version. |
+| `void Checkout(AppSettings)` | Throws "Catalog is already checked out." when the file has a checkout user; otherwise `CheckoutFile` with the comment "LSE Librarian" to `CatalogPath`, then clears read-only on the local file. |
+| `void Checkin(AppSettings, string comment)` | Builds a `Connection` and `FileIteration`, `FileManager.CheckinFile` from `CatalogPath` with the comment. |
+| `void UndoCheckout(AppSettings)` | Finds a document service method with "UndoCheckout" in its name taking one or two parameters; throws "No compatible UndoCheckout method was found." otherwise. |
 
 ## src/NamingService.cs
 
@@ -320,13 +406,13 @@ Finding texts are listed in [OPERATIONS.md](OPERATIONS.md) section 5.
 
 ## src/DiagnosticsService.cs
 
-`string BuildReport()`: runtime, assembly, settings path, backup folder, reference project, every folder and file with `(exists)`/`(MISSING)` (now including "Parts catalog workbook" and "Naming standard JSON snapshot"), JSON load summary, both menus parsed (pages, entries, encoding, line ending, next page number, LSE root pages present per kind), image counts, lookup table count, `Naming standard from workbook: PASS (...)` or `Naming standard from JSON snapshot: PASS (...)` with `NamingWorkbookService.Describe` (or `Naming standard: FAIL`), `Catalog read: PASS (n family tables, part number column X, backups in ...)` when the catalog exists, `Part number issuance lock file present: ...` when `LSE_PartNumber.lock` exists next to the catalog, library lock file presence, recent item count.
+`string BuildReport()`: runtime, assembly, settings path, backup folder, reference project, every folder and file with `(exists)`/`(MISSING)` (now including "Parts catalog workbook" and "Naming standard JSON snapshot"), JSON load summary, both menus parsed (pages, entries, encoding, line ending, next page number, LSE root pages present per kind), image counts, lookup table count, `Naming standard from workbook: PASS (...)` or `Naming standard from JSON snapshot: PASS (...)` with `NamingWorkbookService.Describe` (or `Naming standard: FAIL`), `Catalog read: PASS (n family tables, part number column X, backups in ...)` when the catalog exists, `Part number issuance lock file present: ...` when `LSE_PartNumber.lock` exists next to the catalog, library lock file presence, recent item count. Added 2026-11-12: `Company standards JSON (catalog browser)` with `(exists)` and the record count from `CompanyStandardsService.Load` (or MISSING), `Catalog browser: block attribute for the part number <attribute>, <n> favourites, <n> recent assignments`, and either `Catalog Vault checkout: ON (<CatalogVaultPath> on <server>/<vault name>); Vault Explorer folder ... PASS/MISSING` or `Catalog Vault checkout: off (Catalog path in Vault is blank)`.
 
 ## src/LibrarySettingsForm.cs
 
 `sealed class LibrarySettingsForm : Form`: one row per setting (text box with Browse for folders and files), five check boxes, buttons **Read library paths from project...** (`SettingsService.ApplyProject`, fills the boxes, asks you to Save), **Test**, **Save naming snapshot (JSON)**, **Diagnostics**, **Save** (validates icon size 16 to 1024, three-digit series, non-blank menu file names, a valid part column name; a blank part column becomes `USER1`).
 
-Catalog record rows: "Catalog MDB (default_cat.mdb)", "LSE parts catalog workbook (.xlsx)" (filter `*.xlsx;*.xlsm`), "Naming standard JSON (fallback snapshot)", "Catalog backup folder (blank = next to the catalog)", "Catalog column holding the LSE part number"; check boxes "Offer a catalog record (default_cat.mdb) in the Librarian wizard" and "Fill USER2 with the purchase description (Description + MPN) by default". **Test** also reports `Parts catalog workbook: PASS (...)` or `Naming standard JSON snapshot (workbook not found): PASS (...)` and `Catalog: PASS (n family tables, part number column ..., backups in ...)`. **Save naming snapshot (JSON)** (`SaveSnapshot`): collects the boxes, requires the workbook file, `LoadWorkbook(..., force: true)`, adds `FamilyHints` from `CatalogService.FamilyHints` when the catalog opens, sets `Source` to `<workbook file name> (snapshot <date time> by <user>)`, `SaveJson` to the naming standard path, shows the path and `Describe`.
+Catalog record rows: "Catalog MDB (default_cat.mdb)", "LSE parts catalog workbook (.xlsx)" (filter `*.xlsx;*.xlsm`), "Naming standard JSON (fallback snapshot)", "Catalog backup folder (blank = next to the catalog)", "Catalog column holding the LSE part number"; Browser and Vault rows (2026-11-12): "Company standards JSON (catalog browser)" (filter `*.json`), "Block attribute that receives the LSE part number" (upper-cased; blank becomes `USER1`; otherwise letters, digits and underscores, else "The block attribute name may only contain letters, digits and underscores."), "Vault Explorer folder (optional, catalog checkout)", "Vault server", "Vault name", "Catalog path in Vault (blank = no Vault checkout)" (when set, server and name are required: "Vault server and Vault name are required when a catalog path in Vault is set."). **Test** adds `Company standards JSON: PASS (n records)` or `not created yet (written on the first Toggle company standard)` and `Catalog Vault checkout: ON; Vault Explorer folder PASS/MISSING ...` or `Catalog Vault checkout: off`. Catalog record check boxes: "Offer a catalog record (default_cat.mdb) in the Librarian wizard" and "Fill USER2 with the purchase description (Description + MPN) by default". **Test** also reports `Parts catalog workbook: PASS (...)` or `Naming standard JSON snapshot (workbook not found): PASS (...)` and `Catalog: PASS (n family tables, part number column ..., backups in ...)`. **Save naming snapshot (JSON)** (`SaveSnapshot`): collects the boxes, requires the workbook file, `LoadWorkbook(..., force: true)`, adds `FamilyHints` from `CatalogService.FamilyHints` when the catalog opens, sets `Source` to `<workbook file name> (snapshot <date time> by <user>)`, `SaveJson` to the naming standard path, shows the path and `Describe`.
 
 ## src/LibrarianForm.cs
 
@@ -363,12 +449,14 @@ Empty `Initialize` and `Terminate`.
 |---|---|---|
 | `LSELIBRARIAN` | `Modal` | `LibrarianForm(null)` shown with `ShowModalDialog`. This is the catalog-only path: `CatalogTransactionService.Execute` touches only `default_cat.mdb`, its backup folder and `CatalogReport.txt`. The dialog shows a "Catalog record only" banner when not embedded. |
 | `LSELIBRARYAUDIT` | `Modal` | `AuditForm`; afterwards opens `LibrarianForm(path)` when a drawing was picked. |
+| `LSECATALOG` | `Modal` | `Browse(null)`: the private helper builds `CatalogBrowserForm(SettingsService.Load(), block)` and shows it with `ShowModalDialog`, in its own `try` with the same message box. |
+| `LSEASSIGNCOMPONENT` | `Modal` | `ComponentAssignService.PromptForBlock()`, then `Browse(block)` when a block was picked. |
 | `LSECATALOGADD` | `Modal` | `CatalogRecordForm(SettingsService.Load(), embedded: false, null, null)` shown with `ShowModalDialog`. |
 | `LSEFOOTPRINTMAP` | `Modal` | `FootprintMapForm(SettingsService.Load())` shown with `ShowModalDialog`. |
-| `LSELIBRARYSETTINGS` | `Modal` | `LibrarySettingsForm`. |
-| `LSELIBRARYDIAG` | `Modal` | `MessageBox` with `DiagnosticsService.BuildReport()`. |
+| `LSELIBRARYSETTINGS` | `Modal` | `LibrarySettingsForm`. Also the home of the retired `LSECATALOGSETTINGS`. |
+| `LSELIBRARYDIAG` | `Modal` | `MessageBox` with `DiagnosticsService.BuildReport()`. Also the home of the retired `LSECATALOGDIAG`. |
 
-Every body is one `try` whose catch shows `ex.ToString()` in a message box titled "LSE Librarian".
+Eight commands. Every body is one `try` whose catch shows `ex.ToString()` in a message box titled "LSE Librarian" (the diagnostics box is titled "LSE Librarian Diagnostics"). The retired `LSECATALOGADMIN` is replaced by `LSECATALOGADD`.
 
 ## config/LseLibraryStandard.json
 
@@ -384,4 +472,4 @@ Unchanged target and reference arrangement (`net8.0-windows`, x64, WinForms, Aut
 
 ## bundle/LSE.Librarian.bundle/PackageContents.xml
 
-Autoloader manifest: `LoadOnCommandInvocation="True"`, the commands (`LSELIBRARIAN`, `LSELIBRARYAUDIT`, `LSECATALOGADD`, `LSELIBRARYSETTINGS`, `LSELIBRARYDIAG`, and since 2026-11-12 `LSEFOOTPRINTMAP` in code, which the manifest in `bundle` does not list yet; `LSECATALOGADD` added 2026-11-10), `SeriesMin="R25.1" SeriesMax="R25.1"` (AutoCAD 2026). Product and upgrade GUIDs are unique to this plugin. `LSECATALOGADD` is not yet listed, so with the bundle the DLL is loaded on the first of the four listed commands and `LSECATALOGADD` works afterwards (or after `NETLOAD`); add a `<Command>` line for it when the manifest is next edited.
+Autoloader manifest: `LoadOnCommandInvocation="True"`, all eight commands (`LSELIBRARIAN`, `LSELIBRARYAUDIT`, `LSECATALOG`, `LSEASSIGNCOMPONENT`, `LSECATALOGADD`, `LSEFOOTPRINTMAP`, `LSELIBRARYSETTINGS`, `LSELIBRARYDIAG`), `SeriesMin="R25.1" SeriesMax="R25.1"` (AutoCAD 2026). The package description (2026-11-12) mentions browsing `default_cat.mdb` and assigning catalog records to blocks. Product and upgrade GUIDs are unique to this plugin.

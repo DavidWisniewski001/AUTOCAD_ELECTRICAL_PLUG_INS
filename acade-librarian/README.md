@@ -6,9 +6,13 @@ under a name that follows the LSE standard, with an icon-menu entry and icon ima
 the AutoCAD Electrical catalog `default_cat.mdb` under a new LSE part number, with the naming scheme read straight
 from the LSE parts catalog workbook `LSE ELECTRICAL PARTS CATALOG MANAGER.xlsx`. An audit command finds everything
 that was dumped outside the libraries, named wrongly, left out of the icon menus or left pointing at missing files.
+Since 2026-11-12 it also carries the catalog browser and component assignment merged in from the retired LSE Catalog
+Tools plugin: browse `default_cat.mdb`, pick a record and write its values into the attributes of a block in the open
+drawing.
 
 It is the AutoCAD Electrical counterpart of `../inventor-addin` (LSE Footprint Tools, which issues part numbers and
-generates footprints from 3D models) and follows the same shape as `../acade-project-creator`: settings in
+generates footprints from 3D models), and the home of everything that reads or writes the catalog from inside AutoCAD
+Electrical. It follows the same shape as `../acade-project-creator`: settings in
 `%APPDATA%\LSE\...\settings.json`, a shareable JSON standard, a transaction service that logs every step and rolls
 back on failure, WinForms GUI in the LSE code style. It ships alone; no assembly is shared with the sibling plugins.
 
@@ -16,7 +20,7 @@ back on failure, WinForms GUI in the LSE code style. It ships alone; no assembly
 
 | Document | Read it for |
 |---|---|
-| this README | overview, commands, what gets written, catalog records and LSE part numbers, configuration, build, deploy, known gaps |
+| this README | overview, commands, what gets written, catalog records and LSE part numbers, the catalog browser and component assignment, configuration, build, deploy, known gaps |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | components, dependency diagram, the transaction step by step, the catalog step, the icon menu model, design decisions |
 | [docs/CODE-REFERENCE.md](docs/CODE-REFERENCE.md) | every public member of every source file, the wizard's behaviour, the catalog record dialog, the commands |
 | [docs/DATA-STORES.md](docs/DATA-STORES.md) | settings.json, the library standard JSON field by field, the `.DAT` icon menu format, images, lookup MDB, the parts catalog workbook and its JSON snapshot, `default_cat.mdb`, backups, locks, logs |
@@ -36,16 +40,20 @@ lock) passed a 67-check console smoke test against a copy of the real workbook a
 (drawing inspection, WBLOCK export, icon rendering) and the dialogs inside AutoCAD are unverified. Follow the
 first-build checklist in the developer guide before using it on the live Vault working folder.
 
+**Merged from LSE Catalog Tools (2026-11-12).** The separate plugin `acade-catalog-tools` is retired; its commands map as `LSECATALOGADMIN` -> `LSECATALOGADD`, `LSECATALOGSETTINGS` -> `LSELIBRARYSETTINGS`, `LSECATALOGDIAG` -> `LSELIBRARYDIAG`; `LSECATALOG` and `LSEASSIGNCOMPONENT` kept their names. The catalog smoke test now has 108 checks (23 new ones for the browser and assignment logic and the Vault-off paths), all passed on 2026-11-12 on copies of the real workbook, `default_cat.mdb` and `footprint_lookup.mdb`; the plugin compiles in Release with 0 warnings against AutoCAD.NET 25.1.0. Not verified inside AutoCAD: `CatalogBrowserForm` itself, block selection and the attribute write (`PromptForBlock`, `ReadBlock`, `Apply`), and the Vault checkout, checkin and undo against a live Vault.
+
 ## Commands
 
 | Command | Purpose |
 |---|---|
 | `LSELIBRARIAN` | Four-step wizard: Item (kind and source) → Name and folder → Icon menu, icon image, lookup and (optionally) a catalog record in `default_cat.mdb` with a new LSE part number → Review and add |
+| `LSECATALOG` | Catalog browser (see "Catalog browser and component assignment"): browse `default_cat.mdb` by scope, family, manufacturer, type and rating, search every column, mark favourites and company standards, add a record with **New record...**, and assign a record to a block |
+| `LSEASSIGNCOMPONENT` | Asks for a block in the open drawing, then opens the same browser with that block loaded; choose a record, check the attribute change preview, **Assign component** (or double-click the row) writes the record into the block's attributes |
 | `LSECATALOGADD` | Stand-alone catalog record dialog: pick the workbook tab and the category, manufacturer and type codes, preview the next unused LSE part number, fill the AutoCAD Electrical fields, add the row to `default_cat.mdb` (backed up first, rolled back on failure). **This is the catalog-only mode**: a plain part number with no symbol, no footprint, no icon menu or library change and no lookup change unless you tick the optional footprint box; WDBLKNAM stays optional |
 | `LSEFOOTPRINTMAP` | Footprint mapping, next to the catalog features: lists every LSE part in `default_cat.mdb` (MANUFACTURER, CATALOG, LSE part number, family) with its current `footprint_lookup.mdb` row, filterable by status (Unmapped, Mapped, Missing drawing, Block name), family and text. Select one or many parts, **Browse...** to a footprint DWG in the footprint library, **Map selected parts**. Creates the manufacturer table and row when missing, updates the path when the part is already mapped (only after you confirm the replacement). One backup, one library lock, read-back, all-or-nothing rollback; the report is `FootprintMapReport.txt` in `<BackupFolder>\<stamp>_footprintmap\`. `LSECATALOGADD` has the same mapping as an optional tick box. **Symbol link (2026-11-12, user-approved):** the same dialog (title "LSE Librarian: catalog symbol and footprint links") has a **Symbol (WDBLKNAM)** column, a Symbol filter (All, No symbol, Has symbol), a **Schematic symbol (block)** box with **Browse...** and **Set symbol**. Set symbol writes WDBLKNAM, and nothing else, on the selected catalog rows, matched by family table + part-number column + MANUFACTURER + CATALOG (exactly one row must match; never inserts or deletes). The block must exist as a `.dwg` in the LSE or stock schematic symbol library; the library's own spelling is stored. A non-empty WDBLKNAM is replaced only after you confirm (default No). Written by `CatalogTransactionService.SetSymbols`: one backup (`<CatalogBackupFolder>\<stamp>_symbollink\` with `SymbolLinkReport.txt`), `LSE_PartNumber.lock`, read-back, all-or-nothing rollback |
 | `LSELIBRARYAUDIT` | Scans both icon menus, the three LSE library folders, the images folder and `footprint_lookup.mdb`; lists findings with a suggested fix; "Open in Librarian" registers an orphan drawing in place |
-| `LSELIBRARYSETTINGS` | Library folders, icon menu folder and file names, lookup MDB, catalog MDB, parts catalog workbook, naming snapshot JSON, catalog backup folder and part-number column, standard JSON, backup folder, icon size, default series; "Read library paths from project" fills the folders from a `.wdp`; "Save naming snapshot (JSON)" writes the workbook's naming scheme to the fallback file |
-| `LSELIBRARYDIAG` | Runtime, settings, every path, both menus parsed (page counts, LSE root pages present), JSON loaded, lookup readable, naming standard loaded (from the workbook or the snapshot), catalog readable (family tables, part column, backup root), both lock files if present |
+| `LSELIBRARYSETTINGS` | Library folders, icon menu folder and file names, lookup MDB, catalog MDB, parts catalog workbook, naming snapshot JSON, catalog backup folder and part-number column, standard JSON, backup folder, icon size, default series, and (2026-11-12) the company standards JSON, the block attribute that receives the LSE part number, and the optional Vault fields (Vault Explorer folder, server, name, catalog path in Vault); "Read library paths from project" fills the folders from a `.wdp`; "Save naming snapshot (JSON)" writes the workbook's naming scheme to the fallback file; Test adds a company-standards line and a Vault on/off line |
+| `LSELIBRARYDIAG` | Runtime, settings, every path, both menus parsed (page counts, LSE root pages present), JSON loaded, lookup readable, naming standard loaded (from the workbook or the snapshot), catalog readable (family tables, part column, backup root), both lock files if present, and (2026-11-12) the company standards JSON (exists, record count), a browser summary (part attribute, favourites, recent) and "Catalog Vault checkout: ON (...)" with the Vault Explorer folder check, or "off (Catalog path in Vault is blank)" |
 
 ## What the Librarian writes
 
@@ -134,7 +142,42 @@ tab. `USER2` is filled with the purchase description (`DESCRIPTION, MPN <catalog
 
 **Safety.** The catalog is copied into `<catalog folder>\LSE_Catalog_Backups\<stamp>\` first, the number is issued
 under the lock file `LSE_PartNumber.lock` (shared with the Inventor add-in), the row is read back after the insert, and
-on any failure the backup is copied back over the catalog. Nothing talks to Vault: check the changed MDB in by hand.
+on any failure the backup is copied back over the catalog. Vault is touched only when `CatalogVaultPath` is set (checkout after the backup, checkin after the read-back); otherwise check the changed MDB in by hand.
+
+## Catalog browser and component assignment
+
+`LSECATALOG` and `LSEASSIGNCOMPONENT` open `CatalogBrowserForm` (`src/CatalogBrowserForm.cs`). It reads `default_cat.mdb` through `CatalogService.ReadTable` (at most 20,000 rows per family table; the status line says so when the cap is hit) and writes only block attributes in the open drawing and the per-user settings. It never writes the catalog itself.
+
+**Layout.** Left tree with four scopes: Company Standards, My Favorites, Recently Used, Full Catalog (the browser starts on Full Catalog when no company standards exist). Above the grid: a Family combo (friendly names from the catalog's `_FAMILY_DESCRIPTION` table, else a built-in list, else the table code), Manufacturer, Type and Rating combos, and a free-text search over every column. The top grid lists the records: Status, Manufacturer, Catalog, "LSE Part Number (<part column>)", Description, Type, Rating, Symbol (WDBLKNAM). The bottom grid is the attribute change preview for the selected block: Attribute, Current, Proposed (editable) and a Preserve tick. Buttons: Toggle favorite, Toggle company standard, **New record...** (opens `CatalogRecordForm` pre-set to the current family table, then reloads), Select block / Change block, Assign component, Refresh, Close. Assign component without a selected block asks for one first.
+
+**Attribute mapping.** For the selected record the proposed value of each attribute the block already has comes from this table. The one attribute added when missing is the part attribute (shown as Current `(missing)`).
+
+| Block attribute | Value from the record |
+|---|---|
+| `MFG`, `MANUFACTURER` | MANUFACTURER |
+| `CAT`, `CATALOG` | CATALOG |
+| `DESC`, `DESC1` | DESCRIPTION |
+| `RATING` | RATING |
+| `TYPE` | TYPE |
+| `USER1` | USER1 |
+| `LSE_PART_NUMBER` | the catalog column named by `LsePartColumn` |
+| the setting `LsePartAttribute` (default `USER1`) | the same catalog part column |
+| `COLOR` | colour code inferred from the record (below) |
+| any tag named in TEXTVALUE | the value in the record's TEXTVALUE `KEY=VALUE;KEY=VALUE` pairs, which override every row above |
+
+**Part attribute versus part column.** `LsePartColumn` is the catalog column the LSE part number is read from; `LsePartAttribute` is the block attribute that receives it. They are separate settings. When the block has no attribute of that name, Apply appends it as an invisible attribute definition and reference.
+
+**Colour inference.** The first of GREEN G, RED R, YELLOW Y, BLUE B, WHITE W, CLEAR C, AMBER A, ORANGE O, BLACK K found in DESCRIPTION, TYPE, RATING, CATALOG, MISCELLANEOUS1, MISCELLANEOUS2 gives the `COLOR` code.
+
+**Preserved attributes.** These start ticked in the Preserve column, their Proposed value equals the current value, and Apply skips them: `TAG`, `TAG1`, `TAG2`, `LOC`, `INST`, `FAMILY`, `XREF`, `WDTAGALT`, any tag starting with `X`, and any tag containing `WIRE` or `PIN`. To overwrite one the engineer unticks Preserve: Proposed then takes the record's mapped value when the attribute has one (otherwise it stays as it is and can be typed over); ticking again resets Proposed to the current value.
+
+**Compatibility warning.** If the block's FAMILY attribute does not match the record's family table, or the record's WDBLKNAM is not part of the block name, the browser asks Yes/No before assigning. It is a warning, never a hard stop.
+
+**Assigning.** Select a record, check the preview (edit Proposed or untick Preserve where needed), press **Assign component** or double-click the row. `ComponentAssignService.Apply` takes the document lock, changes the attributes in one transaction (each is opened for read and upgraded to write only when its value changes), commits and regenerates. Use AutoCAD UNDO to reverse it. The record key then goes to the top of `Recent` (25 kept) and settings are saved.
+
+**Favourites, recent and company standards.** `Favorites` and `Recent` are lists of record keys (`TABLE|MANUFACTURER|CATALOG`, upper case) in `settings.json`. Company standards are a JSON array in `CompanyStandards.json` (setting `CompanyStandardsPath`, default `%APPDATA%\LSE\AutoCADElectricalLibrarian\CompanyStandards.json`; point it at a shared copy to share the list). A missing file is an empty list.
+
+**Optional Vault checkout.** With `CatalogVaultPath` set, every catalog write (`LSECATALOGADD`, the wizard's catalog record, Set symbol in `LSEFOOTPRINTMAP`) checks `default_cat.mdb` out of Vault after the backup and checks it in after the read-back, undoing the checkout on failure (`VaultCatalogService`, Vault SDK loaded by reflection from `VaultExplorerPath`, Windows authentication). With `CatalogVaultPath` blank nothing changes. Unverified against a live Vault.
 
 ## Configuration: `config\LseLibraryStandard.json`
 
@@ -159,6 +202,13 @@ All of these are optional and default sensibly; older settings files keep workin
 | `LsePartColumn` ("Catalog column holding the LSE part number") | `USER1` | Read in every family table; written on insert. |
 | `OfferCatalogRecord` | `true` | Shows the catalog group on wizard step 3. |
 | `PurchaseDescriptionInUser2` | `true` | Pre-ticks "USER2 = purchase description" in the dialog. |
+| `CompanyStandardsPath` ("Company standards JSON (catalog browser)") | `%APPDATA%\LSE\AutoCADElectricalLibrarian\CompanyStandards.json` | The curated list shown by the Company Standards scope. Blank makes saving a standard fail with a message. |
+| `LsePartAttribute` ("Block attribute that receives the LSE part number") | `USER1` | Letters, digits and underscores; blank means `USER1`. Not the same as `LsePartColumn`. |
+| `Favorites`, `Recent` | empty | Record keys; `Recent` keeps the last 25, most recent first. Written by the browser, not shown in the form. |
+| `VaultExplorerPath` ("Vault Explorer folder (optional, catalog checkout)") | `C:\Program Files\Autodesk\Vault Client 2026\Explorer` | Where the Vault SDK DLLs are loaded from. Used only when `CatalogVaultPath` is set. |
+| `VaultServer` ("Vault server") | `lse-cep-sql` | Required when `CatalogVaultPath` is set. |
+| `VaultName` ("Vault name") | `Lake_Shore_E_Vault` | Required when `CatalogVaultPath` is set. |
+| `CatalogVaultPath` ("Catalog path in Vault (blank = no Vault checkout)") | blank | Vault path of `default_cat.mdb`. Blank = no Vault step. |
 
 ## Build
 
@@ -177,13 +227,15 @@ All of these are optional and default sensibly; older settings files keep workin
 ## Requirements on the workstation
 
 - AutoCAD Electrical 2026 (the host).
-- Write access to the Vault working folder that holds the libraries and `dat MENU`. The Librarian does not talk to Vault; check the changed files in from Vault Explorer afterwards (see known gaps).
+- Write access to the Vault working folder that holds the libraries and `dat MENU`. The Librarian talks to Vault only for the optional `default_cat.mdb` checkout; check the other changed files in from Vault Explorer afterwards (see known gaps).
 - 64-bit Access Database Engine (ACE 16 or 12), if footprints are registered in `footprint_lookup.mdb` or catalog records are added to `default_cat.mdb`.
 - For catalog records: the workbook `LSE ELECTRICAL PARTS CATALOG MANAGER.xlsx` reachable at the configured path, or the JSON snapshot `LseNamingStandard.json` next to the DLL (or at the configured path). No Excel is needed.
 
 ## Known gaps / next refinements
 
-- No Vault integration: the DWG, PNG, `.DAT` and MDB files are changed in the working folder and must be checked in by hand. `../inventor-addin/src/FootprintTransactionService.cs` (`VaultCatalogService`) shows the reflection approach if it is wanted. A changed `default_cat.mdb` in particular must be checked in by hand after a catalog record is added.
+- Vault is optional and only for `default_cat.mdb`: with `CatalogVaultPath` set the catalog writes check it out and in (unverified against a live Vault); with it blank, and always for the DWG, PNG, `.DAT` and `footprint_lookup.mdb` files, changes are made in the working folder and must be checked in by hand. `src/VaultCatalogService.cs` is the reflection approach, the same code as the Inventor add-in's.
+- `CatalogBrowserForm`, block selection and `ComponentAssignService.Apply` (document lock, attribute upgrade, appending an invisible attribute, Regen) have never run inside AutoCAD. Whether a 20,000-row family table is usable in the grid is also unverified; the browser reads at most 20,000 rows per table and says so in the status line.
+- No migration from the retired LSE Catalog Tools plugin: its `%APPDATA%\LSE\AutoCADElectricalCatalogTools\` folder (settings, favourites, standards) is not read. That plugin was never deployed.
 - No rename or move of an existing library item: the audit tells you what is wrong, the wizard files a correctly named copy, and the old file and its menu entry are retired by hand.
 - The audit does not edit the menus (no automatic repair). Everything it reports has a suggested manual or Librarian action.
 - Workbook tabs without a "Part # Segment" table or without type codes (`LSE LABELS & NAMEPLATES`, `LSE CHEMICALS & CONSUMABLES` on 2026-11-10) are skipped, so no part number can be issued for them until the tab gets a naming block.

@@ -1,15 +1,15 @@
 ---
 name: lse-csharp-dev
-description: Writes and edits C# for the LSE.AutoCADElectrical.CatalogTools AutoCAD Electrical 2026 plugin. Use for any new service, form, model, or command in that codebase, or any code the user wants "in the LSE style".
+description: Writes and edits C# for the LSE AutoCAD Electrical 2026 plugins in the LSE style (written for the former CatalogTools plugin, merged into the Librarian on 2026-11-12; the rules apply to every sibling plugin). Use for any new service, form, model, or command in that codebase, or any code the user wants "in the LSE style".
 tools: Read, Edit, Write, Glob, Grep, Bash
 model: sonnet
 ---
 
-You write C# for the `LSE.AutoCADElectrical.CatalogTools` plugin (AutoCAD Electrical 2026, .NET 8, WinForms, ADODB/ACE via COM, Autodesk Vault SDK via reflection). Match the existing codebase exactly. Read STYLE-GUIDE.md and at least two existing files in the same category (service / form / model) before writing anything.
+You write C# for the LSE AutoCAD Electrical 2026 plugins (`LSE.AutoCADElectrical.Librarian`, `ProjectTools`, `LSE_Doctor`, `LSE_Env`; the rules were written for the former CatalogTools plugin, merged into the Librarian on 2026-11-12) (AutoCAD Electrical 2026, .NET 8, WinForms, ADODB/ACE via COM, Autodesk Vault SDK via reflection). Match the existing codebase exactly. Read STYLE-GUIDE.md and at least two existing files in the same category (service / form / model) before writing anything.
 
 ## Non-negotiables
 
-- File-scoped namespace: `namespace LSE.AutoCADElectrical.CatalogTools;` — always, one line, right after `using`s.
+- File-scoped namespace: `namespace LSE.AutoCADElectrical.<Plugin>;` (for example `LSE.AutoCADElectrical.Librarian`) — always, one line, right after `using`s.
 - Every class is `sealed` (or `static`). No interfaces, no inheritance, no DI containers.
 - `using` lines at the top are joined with `;` on one line when there are two or three (`using System.Drawing;using System.Windows.Forms;`). The one exception is the AutoCAD service, which uses normal multi-line usings because of the `AcApp` alias.
 - Nullable enabled: `?` on everything that can be null, `??=`/`??` instead of `if (x == null)`, `is null` / `is not null` instead of `== null`.
@@ -28,7 +28,7 @@ Two densities exist in this codebase. Pick by file role:
 
 **Compact (models, services, settings, small forms, Plugin.cs):** members on one line each, no blank lines between members, `{get;set;}` with no spaces, `=>` bodies wherever a method is a single expression, parameters named with one or two letters (`s`, `q`, `c`, `r`, `p`, `x`). A whole service fits on a screen.
 
-**Expanded (AutoCadComponentService.cs, CatalogBrowserForm.cs):** normal 4-space formatting, descriptive names (`attributeDefinition`, `requestedChanges`), one statement per line, `private` written out. Use this only for code that touches the AutoCAD database/transaction API or for a large form with many controls.
+**Expanded (ComponentAssignService.cs, CatalogBrowserForm.cs, the form files):** normal 4-space formatting, descriptive names (`attributeDefinition`, `requestedChanges`), one statement per line, `private` written out. Use this only for code that touches the AutoCAD database/transaction API or for a large form with many controls.
 
 Never mix the two in one file. When adding to an existing file, match that file.
 
