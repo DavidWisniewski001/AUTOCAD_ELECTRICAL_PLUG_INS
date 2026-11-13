@@ -1,6 +1,6 @@
 # Developer guide: LSE Project Tools
 
-Maintained by DCW. Last reviewed 2026-11-10.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 How to build, debug, extend and verify the plugin. Read [ARCHITECTURE.md](ARCHITECTURE.md) for the design and [CODE-REFERENCE.md](CODE-REFERENCE.md) for member-level detail.
 
@@ -18,7 +18,7 @@ acade-project-creator/
   config/LseProjectTemplates.json             the LSE project standard (vault, job rule, lines, title block, product lines, drawing sets); copied to output
   bundle/LSE.ProjectTools.bundle/PackageContents.xml   autoloader manifest
   docs/                                       this documentation set
-  src/*.cs                                    ten source files, one namespace
+  src/*.cs                                    eleven source files, one namespace (VaultProbe.cs is the shared copy kept identical across the LSE plugins)
 ```
 
 The reference template the JSON was taken from is kept at `../reference/CUSTOM PROJECT TEMPLATE 2.0/` (the `.wdp`, `.wdt`, `_wdtitle.wdl`, `.aepx` and the two template drawings).
@@ -52,6 +52,8 @@ Project settings worth knowing:
 | `AppendTargetFrameworkToOutputPath` | `false` | Output lands in `bin\Release\` directly, easier to copy. |
 | `Nullable`, `ImplicitUsings` | enabled | House style. |
 
+Versioning: there is no `<Version>` in the project file and no build tag in the window titles. The version that identifies a build is the release cut it shipped in (`LSE-Plugins-2026-11-12-r7`, zip `LSE.AutoCADElectrical.ProjectTools-2026-11-12-r7.zip`). `PackageContents.xml` carries `AppVersion="1.0.0"`; [CODE-REFERENCE.md](CODE-REFERENCE.md) says to change it on each release, which has not been done so far. The `V2` in the `LSEPROJECTDIAG` header names the LSE-specific redesign, not a build. If a build tag is wanted, copy the `BuildInfo.cs` pattern of `../acade-project-env` or `../acade-project-doctor`.
+
 Building without an installed SDK: download `https://aka.ms/dotnet/8.0/dotnet-sdk-win-x64.zip`, unzip anywhere, set `DOTNET_ROOT` to that folder and run its `dotnet.exe build`. No administrator rights are needed.
 
 ## 4. Deploy and debug
@@ -68,7 +70,7 @@ Deploy as in [OPERATIONS.md](OPERATIONS.md) section 2. For development:
 The code follows `../STYLE-GUIDE.docx` and the sibling projects:
 
 - File-scoped namespace. Every class `sealed` or `static`. No interfaces, inheritance or dependency injection.
-- Two densities. Compact (one member per line, one-space indent, short locals `s`, `q`, `t`, `r`, `p`, `x`): `Models.cs`, `SettingsService.cs`, `WdpFileService.cs`, `AcadeBridgeService.cs`, `ProjectTransactionService.cs`, `DiagnosticsService.cs`, `ProjectSettingsForm.cs`, `Plugin.cs`. Expanded (4-space, descriptive names, `private` written out): `DrawingFactoryService.cs`, `NewProjectForm.cs`. Do not mix within a file.
+- Two densities. Compact (one member per line, one-space indent, short locals `s`, `q`, `t`, `r`, `p`, `x`): `Models.cs`, `SettingsService.cs`, `WdpFileService.cs`, `AcadeBridgeService.cs`, `ProjectTransactionService.cs`, `DiagnosticsService.cs`, `ProjectSettingsForm.cs`, `Plugin.cs`, `VaultProbe.cs` (edit it in all plugins at once, never in one only). Expanded (4-space, descriptive names, `private` written out): `DrawingFactoryService.cs`, `NewProjectForm.cs`. Do not mix within a file.
 - Every text comparison is `StringComparison.OrdinalIgnoreCase`; dictionaries keyed by attribute names or tokens use `StringComparer.OrdinalIgnoreCase`.
 - Errors are `InvalidOperationException` or the specific BCL exception with a sentence the engineer can act on. Caught only at command methods and button handlers; shown with `MessageBox.Show`.
 - Mutating work produces a line-per-step log that ends `Status: SUCCESS` and is written to a report file.
@@ -164,3 +166,11 @@ Do these on an AutoCAD Electrical 2026 workstation with the vault working folder
 | 19 | AutoCAD Electrical's acceptance of a pre-written `.aepx` is unverified; it normally writes the file itself (the template's carries `FileID` 3 and 4 and `NextID` 6, the plugin writes 1..n and n+1). | `WdpFileService.WriteConfiguration` | Checklist item 9; untick **Write .aepx** if it causes trouble. |
 | 20 | The product line folder tree is a snapshot of `Locations.txt` dated 2026-11-10. | `config/LseProjectTemplates.json` `productLines` | New folders can be typed in the wizard; update the JSON when the vault tree changes. |
 | 21 | The two LSE template drawings have not been inspected: that `DRAWING-#.dwg` and `STOCKCODE-E001.dwg` carry WD_M and the `ECAD_LSE_CUSTOM_TB_2.0` block with the tags the `.wdt` maps is inferred from the template `.wdt`. | `config/LseProjectTemplates.json` `titleBlock` | `LSEPROJECTDIAG` on a workstation settles it. |
+| 22 | `VaultProbe.cs` (shared helper, copied verbatim, 2026-11-12-r7): read-only detection, Vault client and add-in session lines are unverified inside AutoCAD / on a workstation with Vault 2026.4. | `VaultProbe`, `ProjectTransactionService.Execute`, `DiagnosticsService` | Diagnostics lines may read "unknown"; the check-in reminder is advisory only. |
+| 23 | The read-only (Vault lock) check covers only `LSE_ProjectReport.txt` in an existing folder. Read-only `.wdp`/sidecar/`.dwg` files are already refused because any existing one is refused; a read-only jobs root folder is not pre-checked and fails at the first write, then rolls back. | `ProjectTransactionService.Execute` | Acceptable; the message comes from Windows instead of the Vault advice. |
+| 24 | With **Set WD_M** unticked, a template without WD_M still logs `WD_M MISSING - the template has no WD_M block and no wd_m.dwg library file was found`, even when the library exists. | `ProjectTransactionService.Execute` (drawing log line) | Misleading log text only. |
+| 25 | `Status: SUCCESS` is logged before the report and `settings.json` are written; a failure there rolls the project back after the log said success, and a report already written survives the rollback. | `ProjectTransactionService.Execute` | Rare (read-only settings file, full disk). |
+| 26 | A successful create saves the settings object loaded when the wizard opened, overwriting changes made in `LSEPROJECTSETTINGS` meanwhile. | `ProjectTransactionService.Execute`, `NewProjectForm.settings` | Only if both are open at once (both are modal, so unlikely). |
+| 27 | While file names are automatic, changing the product line or drawing set on step 1 reloads the drawing list without confirmation, discarding typed drawing types and templates. | `NewProjectForm.OnProjectTypeChanged` | Documented in OPERATIONS; a confirmation like **Load drawing set**'s would fix it. |
+| 28 | No build tag, `AppVersion` never bumped. | `PackageContents.xml`, `.csproj` | A loaded DLL cannot be matched to a release cut except by file date. |
+| 29 | The review pane truncation uses a non-ASCII ellipsis character. | `NewProjectForm.Truncate` | Cosmetic. |

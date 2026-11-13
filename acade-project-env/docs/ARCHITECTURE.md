@@ -1,6 +1,10 @@
 # Architecture: LSE_Env (AutoCAD Electrical 2026 plugin)
 
-Maintained by DCW. Last reviewed 2026-11-12.
+Maintained by DCW. Last reviewed 2026-11-13.
+
+LSE_Env applies a customer's project-wide settings to an AutoCAD Electrical project in one backed-up, verified
+transaction, and switches wire-number schemes, including its own From/To numbering. This document covers the
+components, the plan and apply data flow, the From/To engine and the design decisions.
 
 Assembly `LSE_Env`, namespace `LSE.AutoCADElectrical.ProjectEnvironment`, folder `acade-project-env\`.
 
@@ -31,6 +35,9 @@ records what was applied so the next engineer (and LSE_Doctor) can see it.
 | `WireNumberDrawingService.cs` | expanded, AutoCAD API | reads wires, symbols, wire-number blocks and signal arrows from model space; writes/inserts wire numbers; un-fixes |
 | `AcadeBridgeService.cs` | compact | active project via `USERS1`, reload and retag via `SendStringToExecute`, and `Bridge()` that packages the AutoCAD services as `HostBridge` delegates |
 | `DiagnosticsService.cs` | compact | the `LSEENVDIAG` report |
+| `VaultProbe.cs` | compact | shared by copy with the other LSE plugins: read-only refusal, check-in reminder, Vault client / add-in / runtime lines. LSE_Env never logs in to Vault or checks anything out |
+| `ErrorService.cs`, `BuildInfo.cs`, `HelpText.cs` | compact | three-part error dialog and `Error_<stamp>.txt`; the build tag in titles; the Help texts |
+| `PlanGridService.cs` | expanded | fills the `LSEENV` grid without replacing cells; paints "note" over a note row's box |
 | `EnvironmentForm.cs` | expanded | the `LSEENV` dialog: project, profile, scheme, options, plan grid, apply |
 | `WireSchemeForm.cs` | compact | the `LSEENVWIRES` dialog: radio list of schemes, preview, switch |
 | `ProfilesForm.cs` | expanded | the `LSEENVPROFILES` manager |
@@ -58,30 +65,41 @@ and runs without AutoCAD, which is how the smoke test drives the planner and the
 
 ### Plan (`LSEENV` > Plan, `LSEENVWIRES` > Preview/Switch)
 
+The header of each window is only an input to this step: `LSEENV` reads its project, profile, scheme and tick boxes
+when Plan is pressed and keeps the resulting `EnvPlan` until the next Plan; `LSEENVWIRES` plans afresh on every Preview
+and Switch.
+
 1. `EnvironmentService.ReadProject`: read the `.wdp` (`TextFileService`), group `?[n]` and `+[n]`, list drawings, read
-   the marker; with "Read every drawing" on, `HostBridge.Inspect` each drawing for its `WD_M` values (an open drawing through its Document, a closed one as a side database).
+   the marker; when inspection is requested (`LSEENV`: "Read every drawing"; `LSEENVWIRES`: either tick box),
+   `HostBridge.Inspect` each drawing for its `WD_M` values (an open drawing through its Document, a closed one as a side
+   database).
 2. `EnvironmentService.Resolve`: start from the scheme (fixed `values`, or `templateKeys` read from the LSE template
-   `.wdp` when `fromTemplate`), then the profile's `values` on top. `ResolveFromTo`: the profile's `fromTo` block if it
-   has one and the scheme is From/To, else the scheme's, else none.
+   `.wdp` when `fromTemplate`), then the profile's `values` on top. `ResolveFromTo`: with a From/To scheme, the profile's
+   `fromTo` block if it has one, else the scheme's; with a non-From/To scheme, none (the profile's block is ignored);
+   with no scheme at all, the profile's block if it has one.
 3. For each resolved key, the setting map says where it lives: a `?[n]` / `+[n]` change when the project's line
    differs (protected indexes become notes), a `WD_M` change per drawing that has the attribute and differs (missing
    attribute, no block, open or unreadable drawing become notes). Raw profile overrides follow the same path and
    replace a value-derived change for the same line.
 4. `.wdt` / `.wdl` sources become unticked copy changes when the bytes differ.
-5. With wire tracing on: a From/To scheme reads every drawing's wires (`HostBridge.ReadWires`), builds networks
+5. With wire tracing on and the drawings inspected in step 1 (tracing is skipped with a log line otherwise): a From/To scheme reads every drawing's wires (`HostBridge.ReadWires`), builds networks
    per drawing, merges across sheets by signal code, composes and dedupes numbers, and decides per network (keep, set,
    insert, skip); one `WireNumbers` change per drawing with work carries the `WirePlan`. A non-From/To scheme instead
    looks for wire numbers on the fixed layer and plans an `UnfixWireNumbers` change per drawing (recommended only when
    the marker records a From/To run).
 6. A `Marker` change closes the plan whenever anything applies.
+7. Every change is ticked when it is recommended. `LSEENV` lets the engineer change the ticks in the grid;
+   `LSEENVWIRES` applies the recommended set as it stands.
 
 ### Apply (`ApplyService.Execute`)
 
-Backup every touched file; edit the `.wdp` once; copy files; one `DrawingApplyRequest` per drawing (attributes, wire
+Refuse before anything else when a touched file is read-only (`VaultProbe.RequireWritable`, one message naming every
+file, ending "Nothing was changed."); backup every touched file; edit the `.wdp` once; copy files; one `DrawingApplyRequest` per drawing (attributes, wire
 plan, un-fix handles) through `HostBridge.ApplyDrawing`, which, for a closed drawing, opens it once as a side database and saves it
 in place, and for a drawing open in the editor runs the same transaction on `Document.Database` under
 `LockDocument()` without saving (the log says to save the drawing; backup is the file on disk, rollback restores only that); write the marker (merging the previously recorded indexes); verify every ticked change by reading back;
-append the report; prune; remember the project. Any exception restores the backups, deletes created files, writes the
+list touched files in the Vault working folder that need checking in (open drawings excluded); append the report;
+prune; remember the project. Any exception restores the backups, deletes created files, writes the
 failure log and rethrows with the whole log.
 
 ### The From/To engine (`WireNetworkService`)
@@ -102,7 +120,8 @@ failure log and rethrows with the whole log.
 ## 5. Process, threading and COM model
 
 Everything runs on the AutoCAD UI thread inside a modal dialog; progress is shown by refreshing a status label. No
-background threads, no COM, no Vault. Closed drawings are side databases (`ReadDwgFile`, `SaveAs`); drawings already open in the editor are reached through
+background threads, no COM, no Vault API calls (only the read-only check and the reflection-based diagnostics in
+`VaultProbe`). Closed drawings are side databases (`ReadDwgFile`, `SaveAs`); drawings already open in the editor are reached through
 their `Document` (read transaction, or write under `document.LockDocument()`, never saved by LSE_Env). No closed drawing is
 opened as a document.
 

@@ -1,6 +1,6 @@
 # Data stores: LSE Footprint Tools
 
-Maintained by DCW. Last reviewed 2026-11-08.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 Every file the add-in reads or writes, where it lives, what is in it, and who else touches it. Paths marked *default* can be changed in **LSE Settings**. See [ARCHITECTURE.md](ARCHITECTURE.md) section 5 for the order in which these are touched during a create.
 
@@ -36,10 +36,12 @@ Per user. Written as indented JSON by `SettingsService.Save` through a `.tmp` fi
 | `ConvertToDwgWithAutoCad` | `true` | Run the AutoCAD DXF to DWG step. |
 | `AppendMpnToDescription` | `true` | Catalog `DESCRIPTION` becomes `<description>, MPN <catalog>`. |
 | `LsePartAttribute` | `USER1` | Name of the invisible footprint attribute that carries the LSE part number. Stored upper-case. |
-| `VaultExplorerPath` | `C:\Program Files\Autodesk\Vault Client 2026\Explorer` | Folder holding the three Vault SDK DLLs. |
-| `VaultServer` | `lse-cep-sql` | Vault server host. |
+| `VaultExplorerPath` | `C:\Program Files\Autodesk\Vault Client 2026\Explorer` | Vault Explorer folder holding the SDK DLLs; auto-discovered when blank. |
+| `VaultServer` | `lse-cep-sql` | Vault server host. An `http://` or `https://` prefix and a trailing `/` are stripped before use. Used for the login dialog pre-fill and Windows authentication; ignored when the Vault add-in session is used. |
 | `VaultName` | `Lake_Shore_E_Vault` | Vault name. |
-| `CatalogVaultPath` | blank = Vault disabled | Vault path of `default_cat.mdb`, for example `$/Catalogs/default_cat.mdb`. |
+| `CatalogVaultPath` | blank = Vault disabled | Vault path of `default_cat.mdb`, `$/folder/.../default_cat.mdb`. The example in the code's own error message is `$/CAD Standards/AutoCAD/ECAD Standards/E-CAD .mbd ACCESS FILES/AeData/en-US/Catalogs/default_cat.mdb`. Back-slashes and a missing `$/` are normalised. |
+
+The Settings form has one row per property above, in a slightly different order, plus two check boxes for the two booleans. Field-by-field descriptions for the engineer are in [OPERATIONS.md](OPERATIONS.md) section 3.
 
 Blank path properties are filled with the defaults at load time but the blanks themselves are what gets saved, so moving the catalog later re-derives the other paths automatically unless they were set explicitly.
 
@@ -110,7 +112,7 @@ DESCRIPTION   TEXT(150)   the LSE description without MPN
 RECNUM        COUNTER
 ```
 
-The add-in writes rows with `ASSEMBLYCODE` null and updates an existing row for the same `CATALOG` rather than adding a second. `BLKNAM` is the absolute DWG path, the same convention as the existing `LAKE SHORE` row which points into `C:\_Lake_Shore_E_Vault\...` (README). A path over 255 characters is refused before the write.
+The add-in writes rows with `ASSEMBLYCODE` null and updates an existing row for the same `CATALOG` rather than adding a second. Only rows whose `ASSEMBLYCODE` is null are matched: an existing row with an empty-string `ASSEMBLYCODE` is not found, so a second row is inserted (the pending fix in `docs/pending/` addresses this). `BLKNAM` is the `.dwg` path even when the DWG step was skipped. `BLKNAM` is the absolute DWG path, the same convention as the existing `LAKE SHORE` row which points into `C:\_Lake_Shore_E_Vault\...` (README). A path over 255 characters is refused before the write.
 
 ## 5. Footprint drawings
 
@@ -132,7 +134,7 @@ Not verified on a workstation: that AutoCAD Electrical accepts this attribute se
 
 ## 6. LSE_Catalog_Backups
 
-`<catalog folder>\LSE_Catalog_Backups\yyyyMMdd_HHmmss\` is created for every create attempt, successful or not. Contents:
+`<catalog folder>\LSE_Catalog_Backups\yyyyMMdd_HHmmss\` is created for every create attempt, successful or not. It is created before the lock is taken, so a run refused by the lock leaves an empty stamp folder, and a run refused by the read-only check leaves the two copies but no report. Contents of a run that got past those checks:
 
 - a copy of `default_cat.mdb` taken before any write
 - a copy of `footprint_lookup.mdb` taken before any write
@@ -146,7 +148,14 @@ The sister AutoCAD Electrical plugin writes to the same folder for its admin add
 
 ## 8. Autodesk Vault
 
-Used only when `CatalogVaultPath` is set. The catalog file is checked out to the local `CatalogPath` before the insert and checked in afterwards with the comment `Add electrical catalog component <MFG> <CAT> (<PN>)`. On failure after checkout the add-in undoes the checkout. Authentication is Windows. The footprint DWG and `footprint_lookup.mdb` are not Vault-controlled by this add-in.
+Used only when `CatalogVaultPath` is set (format `$/folder/.../default_cat.mdb`; blank = no Vault). `VaultExplorerPath` is auto-discovered when blank; `VaultServer` and `VaultName` feed the Windows-authentication fallback.
+
+- **Connection routes, in order:** (1) the session Inventor's Vault add-in already holds (`Connectivity.Application.VaultBase.ConnectionManager.Instance.Connection`); (2) the standard Vault login dialog (Vault, Windows and Autodesk ID accounts); (3) Windows authentication against `VaultServer` / `VaultName`. A session the add-in opened itself is released after Checkin or UndoCheckout, and by `EndSession` in the transaction's `finally`.
+- **Checkout** downloads the latest Vault version of the catalog over the local `CatalogPath` when size or date differ, refuses when another user holds the check-out, and clears the read-only flag. The insert therefore always lands in the latest version. However, the part-number scan and the duplicate check run earlier, on the working copy as it was before the download, so they can miss numbers and MPNs that only the newer Vault version contains (see [ARCHITECTURE.md](ARCHITECTURE.md) section 5.4). If the user cancels the login dialog the run aborts and rolls back.
+- **Checkin** uses the comment `Add electrical catalog component <MFG> <CAT> (<PN>)`. On failure after checkout the add-in undoes the checkout. If the failure comes after a successful check-in (the footprint lookup step), the new row is already in Vault and cannot be undone by the add-in.
+- **Failure handling:** each Vault step logs into `TransactionReport.txt`; a missing Vault file, a wrong client or a .NET mismatch is reported as an error and triggers the normal rollback.
+- **Not Vault-controlled:** footprint DXF/DWG and `footprint_lookup.mdb`. They are checked for read-only before the first write (`VaultProbe.RequireWritable`); the catalog too when Vault is off. After success the report lists the files in the Vault working folder that still need check-in.
+- **.NET:** Inventor 2026.4 and Vault 2026.4 run on .NET 10 (since August 2026); Vault client DLLs built for .NET 10 cannot load into an Inventor still on .NET 8. Update both together. Settings > Test shows the host runtime, the Vault client and any mismatch.
 
 ## 9. Temporary Inventor drawing
 

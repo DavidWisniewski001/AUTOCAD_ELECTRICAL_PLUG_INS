@@ -1,6 +1,6 @@
 # Architecture: LSE Librarian (AutoCAD Electrical 2026 plugin)
 
-Maintained by DCW. Last reviewed 2026-11-12.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 LSE Librarian is a .NET plugin that runs inside AutoCAD Electrical and files a new schematic symbol, panel footprint, nameplate or saved user circuit into the LSE library: it copies (or WBLOCKs) the drawing into the right folder under a standard name, writes an icon image, appends an entry to the right icon menu page and, for footprints, inserts the `footprint_lookup.mdb` row. Optionally, and also on its own with `LSECATALOGADD`, it adds the part to the AutoCAD Electrical catalog `default_cat.mdb` under a new LSE part number whose naming scheme is read straight from the LSE parts catalog workbook. It exists because engineers were saving symbols and footprints wherever they happened to be working, with ad-hoc names and no icon-menu entry, so nobody else could find or insert them. A second command audits the libraries and menus and reports everything that does not fit. It is the AutoCAD Electrical counterpart of the Inventor add-in in `../inventor-addin` and shares its shape: a wizard, a JSON standard, a logged transaction with rollback.
 
@@ -32,7 +32,10 @@ One .NET 8 assembly, `LSE.AutoCADElectrical.Librarian.dll`, loaded into AutoCAD 
 | Audit | `src/LibraryAuditService.cs` | `LibraryAuditService` (menus, folders, lookup, images) and `RuleCheckService` (attribute rules against a `DrawingInfo`). |
 | Lookup and catalog databases | `src/AccessCatalogService.cs` | `Ace` (ADODB helper), `FootprintLookupService` (table create, find, upsert, read all paths), `CatalogService` (family tables, columns, part-number reads, exists, insert, family hints) and `IssuanceLock`. |
 | Configuration | `src/SettingsService.cs` | `SettingsService` (settings.json, path and workbook discovery, `.wdp` import) and `LibraryStandardService` (the JSON standard). |
-| Diagnostics | `src/DiagnosticsService.cs` | Builds the `LSELIBRARYDIAG` report, including the naming standard and catalog lines. |
+| Diagnostics | `src/DiagnosticsService.cs` | Builds the `LSELIBRARYDIAG` report, including the naming standard, catalog, writable/read-only and Vault lines. |
+| User interface | `src/FootprintMapForm.cs` | `LSEFOOTPRINTMAP`: grid of every LSE catalog part with its footprint lookup row and WDBLKNAM; maps parts to a footprint DWG and sets the schematic symbol. |
+| Orchestration | `src/FootprintMappingService.cs` | Reads the part-to-footprint mapping and writes `footprint_lookup.mdb` rows for `LSEFOOTPRINTMAP` and the optional box in `LSECATALOGADD` (lock, backup, read-back, rollback). |
+| Vault awareness | `src/VaultProbe.cs` | Read-only guard before writes, check-in reminder after them, host/.NET, Vault client and add-in lines for diagnostics. Shared verbatim with the sibling plugins; no Vault SDK reference. |
 | Data shapes | `src/Models.cs` | Settings, standard, request, result, drawing info, icon menu model, audit findings, naming standard, part-number and catalog request/result types. |
 
 Supporting files:
@@ -65,6 +68,7 @@ Supporting files:
  |                           |     '-- CatalogTransactionService.Preview / FamilyUsage (read-only)
  |                           '-- LibraryTransactionService.Execute ("Add to library")
  |                                 |-- Validate (includes CatalogTransactionService.Validate when a record is requested)
+ |                                 |-- VaultProbe.RequireWritable ..... refuse if a file to change is read-only (not checked out)
  |                                 |-- LibraryLock.Acquire ............ <dat MENU>\LSE_Library.lock
  |                                 |-- File.Copy backups .............. <BackupFolder>\<stamp>\
  |                                 |-- File.Copy | DrawingInspectionService.ExportBlock   -> <root>\<category>\<Name>.dwg
@@ -76,6 +80,7 @@ Supporting files:
  |                                 |     |-- File.Copy backup ............. <LSE_Catalog_Backups>\<stamp>\default_cat.mdb
  |                                 |     |-- CatalogService.ReadColumnStartingWith + PartNumberService.Preview
  |                                 |     '-- CatalogService.AddRecord, Exists, FindByColumn (read-back)
+ |                                 |-- VaultProbe.CheckinReminder ..... log lines listing what to check in
  |                                 '-- LibraryReport.txt (backup folder), settings.RecentItems
  |-- LSECATALOGADD ------> CatalogRecordForm (modal, stand-alone)
  |                           '-- CatalogTransactionService.Execute -> Run (as above) + CatalogReport.txt
@@ -92,7 +97,9 @@ Supporting files:
  '-- LSELIBRARYDIAG -----> DiagnosticsService.BuildReport (also NamingWorkbookService.Load, CatalogService.GetTables)
 ```
 
-External systems touched: the file system (library folders, icon menu folder, backups, settings, temp exports, the parts catalog workbook read as a zip), AutoCAD's database API in-process (side databases, WBLOCK, editor prompt), ADODB over COM for `footprint_lookup.mdb` and `default_cat.mdb`. No Vault, no Excel automation, no network protocol beyond SMB file access.
+External systems touched: the file system (library folders, icon menu folder, backups, settings, temp exports, the parts catalog workbook read as a zip), AutoCAD's database API in-process (side databases, WBLOCK, editor prompt), ADODB over COM for `footprint_lookup.mdb` and `default_cat.mdb`. No Excel automation, no network protocol beyond SMB file access.
+
+Vault (since 2026-11-12-r7) is touched only passively through `VaultProbe`: before a write every file the run will change is checked for the read-only attribute (Vault keeps files that are not checked out read-only) and the run is refused if any is; after a successful write the log lists the touched files inside the Vault working folder that need checking in; `LSELIBRARYDIAG` reports the host .NET, the installed Vault client and the Vault add-in session. The Librarian never loads the Vault SDK, never logs in and never checks files in or out.
 
 ## 4. End-to-end data flow
 
@@ -103,7 +110,7 @@ External systems touched: the file system (library folders, icon menu folder, ba
 5. Step 4 renders a review (the catalog line reads `Catalog record <table> | <MANUFACTURER> | <catalog>  part number <prefix>+ next sequence, issued at run time`). **Add to library** builds a `LibraryRequest` and calls `LibraryTransactionService.Execute`, echoing every log line into the review pane. The success message adds the issued number (`LibraryResult.PartNumber`) when a record was written.
 6. `LSECATALOGADD` opens `CatalogRecordForm` stand-alone. **Add to catalog** validates, warns about description problems, previews if not yet done, confirms, then runs `CatalogTransactionService.Execute` with the log echoed into the dialog's run log; the message box shows the issued number and the backup folder.
 7. `LSELIBRARYAUDIT` runs `LibraryAuditService.Run` on open, lists findings, and when the user picks a drawing finding and presses **Open in Librarian** the audit form closes and the command opens the wizard on that drawing; a drawing already inside its library is registered in place (not copied).
-8. `LSEFOOTPRINTMAP` opens `FootprintMapForm`, which loads every LSE part of `default_cat.mdb` with its lookup state (read only). Mapping validates the chosen DWG, asks before replacing, then runs `FootprintMappingService.Execute`: lock, backup of `footprint_lookup.mdb`, `EnsureTable` and `SetMapping` per part, read-back, report; any failure restores the MDB. It is the second writer of the lookup MDB after the library transaction's step 14, never concurrent with it (both hold `LSE_Library.lock`). `LSECATALOGADD`'s optional footprint box calls the same `Execute` after the catalog insert, as a separate transaction.
+8. `LSEFOOTPRINTMAP` opens `FootprintMapForm`, which loads every LSE part of `default_cat.mdb` with its lookup state (read only). Mapping validates the chosen DWG, asks before replacing, then runs `FootprintMappingService.Execute`: lock, backup of `footprint_lookup.mdb`, `EnsureTable` and `SetMapping` per part, read-back, report; any failure restores the MDB. It is the second writer of the lookup MDB after the library transaction's step 9, never concurrent with it (both hold `LSE_Library.lock`). `LSECATALOGADD`'s optional footprint box calls the same `Execute` after the catalog insert, as a separate transaction.
 
 ## 5. The mutating transaction
 
@@ -112,6 +119,7 @@ External systems touched: the file system (library folders, icon menu folder, ba
 | Step | Action | On failure |
 |---|---|---|
 | 1 | `Validate(request)`: name pattern and length, target folder inside the kind's root, source exists (or block chosen), target does not exist unless in place, name unique across the whole root (and not a stock NFPA symbol name), menu file exists, page (or parent page and new title) exists, label present and unique on the page, icon choice consistent, image name free, lookup fields when registering, backup folder set; when a catalog record is requested: not a user circuit, both requests present, and `CatalogTransactionService.Validate` (section 5.1). | Throws before anything is touched. |
+| 1a | Vault guard (`VaultProbe.RequireWritable`): the icon menu `.DAT`, plus `footprint_lookup.mdb` when registering, `default_cat.mdb` when a catalog record is requested, and the target drawing when registering in place. Any of them read-only (not checked out in Vault) refuses the run with a message naming each file and ending "Nothing was changed." New files (the DWG, the PNG) and folders are not checked. | Throws before the backup folder, the lock or any write. |
 | 2 | Create `<BackupFolder>\<yyyyMMdd_HHmmss>\`. | Throws. |
 | 3 | `LibraryLock.Acquire`: exclusive, delete-on-close `LSE_Library.lock` in the icon menu folder, 40 tries at 250 ms. | Throws ("Another workstation is changing the icon menus right now"). |
 | 4 | Copy the `.DAT` (and `footprint_lookup.mdb` when registering) into the backup folder. | Throws. |
@@ -121,7 +129,7 @@ External systems touched: the file system (library folders, icon menu folder, ba
 | 8 | Load the menu, optionally `AddPage` (next free `M<n>` plus a `$S=M<n>` link entry on the parent), `AddEntry` with the kind's action template, re-parse the rendered text to prove the entry survives, `Save` (tmp file then move). | Rollback. |
 | 9 | Footprints with registration: `EnsureTable(MANUFACTURER)`, `Upsert(CATALOG, BLKNAM = full path, DESCRIPTION)`, read back. | Rollback. |
 | 10 | Catalog record requested: `NamingWorkbookService.Load`, then `CatalogTransactionService.Run` (section 5.1), which backs up and, on its own failure, restores `default_cat.mdb` before rethrowing; `LibraryResult.PartNumber` is set. | `Run` has already restored the catalog; the library rollback then undoes steps 5 to 9. |
-| 11 | Log `Status: SUCCESS`, write `LibraryReport.txt` into the backup folder, push the path onto `RecentItems` (25 kept), save settings. | Not rolled back. |
+| 11 | Log `Status: SUCCESS`, then the Vault check-in reminder (`VaultProbe.CheckinReminder`) for the files this run wrote that sit in the Vault working folder (menu, new or in-place drawing, new PNG, lookup, catalog), write `LibraryReport.txt` into the backup folder, push the path onto `RecentItems` (25 kept), save settings. | Not rolled back. |
 
 Rollback, in order: restore the `.DAT` from its backup copy if it was written, restore the lookup MDB if it was written, delete the written PNG, delete the copied or exported DWG (never an in-place drawing), remove the created folder if it is empty, write `LibraryReport.txt` with the error, then rethrow `InvalidOperationException` whose message is the whole log so the wizard shows it. The lock is released when `Execute` returns or throws. The catalog step is deliberately last: it is the only step with its own backup and restore, so a failure there is undone by `Run` itself and the ordinary library rollback covers everything before it, and no catalog row can exist for an item that was not filed.
 
@@ -132,6 +140,7 @@ Rollback, in order: restore the `.DAT` from its backup copy if it was written, r
 | Step | Action | On failure |
 |---|---|---|
 | 1 | `Validate`: catalog path set and exists, part column name valid, workbook tab chosen, category (digits), manufacturer code (letters) and type code (letters) of the right widths, type code defined on the tab, manual number in standard form and starting with the prefix, family table chosen and valid, MANUFACTURER and CATALOG present (24 and 60 at most), description rules (required, ALL CAPS, no N/A, no degree/diameter/prime symbols, 150 at most; the 100-character rule is only a warning), TYPE/RATING/VOLTAGE/USER2/USER3 100, TEXTVALUE and WEBLINK 255, WDBLKNAM 60, WEBLINK starts with `http://` or `https://`. | Throws before anything is touched. |
+| 1a | Vault guard: `VaultProbe.RequireWritable(default_cat.mdb)`. | Throws before the backup, the lock or any write. |
 | 2 | Create `<CatalogBackupFolder or <catalog folder>\LSE_Catalog_Backups>\<yyyyMMdd_HHmmss>\` (a `_n` suffix if it exists). | Throws. |
 | 3 | `IssuanceLock.Acquire`: exclusive, delete-on-close `LSE_PartNumber.lock` next to the catalog, 40 tries at 250 ms. The same file name as the Inventor add-in, so both tools serialise on it. | Throws ("Another workstation is issuing a part number right now"). |
 | 4 | Copy `default_cat.mdb` into the backup folder. | Throws. |
@@ -140,7 +149,7 @@ Rollback, in order: restore the `.DAT` from its backup copy if it was written, r
 | 7 | `CatalogService.AddRecord`: insert only the columns the table has, enforcing defined sizes, part number into the part column. | Restore, report, rethrow. |
 | 8 | Read back by MANUFACTURER + CATALOG and by part number (must be in the chosen table). | Restore, report, rethrow. |
 
-On failure the backup copy is copied back over the catalog (`Catalog rollback: PASS`, or `PASS (nothing had been written)`), `CatalogReport.txt` with the error is written into the backup folder, and the exception is rethrown. `Execute` (stand-alone) adds the header lines, logs `Status: SUCCESS` and writes `CatalogReport.txt` on success too. The lock is released when `Run` returns or throws.
+On failure the backup copy is copied back over the catalog (`Catalog rollback: PASS`, or `PASS (nothing had been written)`), `CatalogReport.txt` with the error is written into the backup folder, and the exception is rethrown. `Execute` (stand-alone) adds the header lines, logs `Status: SUCCESS` and the check-in reminder for the catalog, and writes `CatalogReport.txt` on success too. `SetSymbols` and `FootprintMappingService.Execute` apply the same guard and reminder to the one file each writes (`default_cat.mdb`, `footprint_lookup.mdb`), after their read-only planning step and before their backup. The lock is released when `Run` returns or throws.
 
 ## 6. The icon menu model
 

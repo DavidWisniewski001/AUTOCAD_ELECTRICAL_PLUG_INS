@@ -1,6 +1,6 @@
 # Glossary: LSE Librarian
 
-Maintained by DCW. Last reviewed 2026-11-12.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 Terms used across the code and documentation, in alphabetical order.
 
@@ -20,7 +20,7 @@ Terms used across the code and documentation, in alphabetical order.
 | Symbol link | `WDBLKNAM` of a catalog row: the schematic symbol block AutoCAD Electrical inserts for the part. Set or changed from `LSEFOOTPRINTMAP` (Set symbol); the block must exist in the LSE or stock symbol library. |
 | Footprint mapping | `LSEFOOTPRINTMAP`: the pairing of a catalog part (MANUFACTURER + CATALOG) with a footprint DWG, stored as a plain row (no ASSEMBLYCODE) in the manufacturer table of `footprint_lookup.mdb` with `BLKNAM` = the DWG path. |
 | `AutoCAD.NET` | NuGet reference package holding AutoCAD's managed API assemblies for compiling without an install. 25.1.0 corresponds to AutoCAD 2026 on .NET 8. |
-| Backup folder | `%APPDATA%\LSE\AutoCADElectricalLibrarian\Backups\<stamp>\`: the `.DAT` and MDB before a run, plus the report. |
+| Backup folder | `%APPDATA%\LSE\AutoCADElectricalLibrarian\Backups\<stamp>\`: the `.DAT` and MDB before a run, plus the report (`<stamp>_footprintmap\` for a mapping run). |
 | `BLKNAM` | `footprint_lookup.mdb` column holding the footprint block name or, in LSE rows, the full DWG path. |
 | Breadcrumb | The page trail from M0 shown in the wizard's page list and the audit (`Panel Layout Symbols > LSE FOOTPRINT COLLECTION > BUSS`). |
 | `CATALOG` (column) | In `default_cat.mdb` and `footprint_lookup.mdb`: the manufacturer part number (MPN), 60 characters. |
@@ -70,7 +70,13 @@ Terms used across the code and documentation, in alphabetical order.
 | Series | The three-digit number after the underscore in LSE names (`_002`). Meaning not documented; default `002`. |
 | Side database | An AutoCAD `Database` loaded from a file without opening it as a document. Used for inspection and rendering. |
 | Slide library reference | Image field of the form `nfpa(s_pb)`: a slide in a `.slb`, used by stock entries; not a file the audit can check. |
-| Smoke test | The console checks run during authoring against the built DLL for the non-AutoCAD logic (66 checks for the library and audit code; 67 checks for the workbook, part number and catalog code against copies of the real workbook and catalog). Not shipped. |
+| Smoke test | Console checks run during authoring against the built DLL for the non-AutoCAD logic. The 66-check library and audit test and the 67-check workbook and catalog test were throw-away projects, not in the tree. The one in the tree is `tests\LSE_Librarian.CatalogSmokeTest\` (catalog-only add, footprint mapping, audit note, symbol link; arguments: workbook, `default_cat.mdb`, optional `footprint_lookup.mdb`, optional `noaudit`); it writes only to copies in `%TEMP%`. It has no Vault (read-only guard) checks. Not shipped. |
+| Check out, check in | Vault operations: check out makes a working-folder file writable and reserves it for you; check in uploads the change and makes it read-only again. New files are added with "Add to Vault". The Librarian does neither; it refuses read-only targets and lists what to check in. |
+| Read-only guard | `VaultProbe.RequireWritable`: before any write, every existing file the run will change is checked for the read-only attribute; one read-only file refuses the whole run with "Nothing was changed." |
+| Vault | Autodesk Vault, the PDM system that holds the LSE standards. The libraries, `dat MENU` and the MDBs are files in its local working folder. |
+| Vault add-in | The Autodesk Vault add-in loaded in AutoCAD (Vault tab). `LSELIBRARYDIAG` reports whether it is loaded and logged in; the Librarian does not use the session. |
+| Vault working folder | The local copy of the vault, `C:\_Lake_Shore_E_Vault\`. Paths containing `\_Lake_Shore_E_Vault\` are the ones listed in the check-in reminder. |
+| `VaultProbe` | `src/VaultProbe.cs`, the Vault-awareness helper shared verbatim by every LSE plugin: read-only guard, check-in reminder, host/.NET and Vault client diagnostics. No Vault SDK reference. |
 | Snapshot (naming) | `LseNamingStandard.json`: the parsed naming standard serialised, used when the workbook cannot be reached; written by "Save naming snapshot (JSON)". Same shape as the Inventor add-in's naming file. |
 | Stock libraries | Autodesk's `NFPA` symbol folder and `panel` footprint folder; never written. |
 | Type code | Two letters in positions 6 and 7 of an LSE part number (`FH` fuse holder); defined on the workbook tab's "Type" row as `XX = meaning` pairs. |

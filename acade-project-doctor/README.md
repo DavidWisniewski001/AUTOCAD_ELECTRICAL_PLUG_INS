@@ -1,5 +1,7 @@
 # LSE_Doctor (AutoCAD Electrical 2026 plugin)
 
+Maintained by DCW. Last reviewed 2026-11-13.
+
 Examines an existing AutoCAD Electrical project against the LSE custom project template and repairs what is missing
 or off-standard: the `*[n]` project description lines, the `+[n]` library and icon-menu paths and other options, the
 `?[n]` project properties, the `<project>.wdt` title block mapping, the `<project>_wdtitle.wdl` description labels,
@@ -15,10 +17,32 @@ It is the repair-shop counterpart of `acade-project-creator` (LSE Project Tools,
 follows the same shape: settings in `%APPDATA%\LSE\...\settings.json`, a shareable rules JSON, a transaction with
 backup, verify and rollback, WinForms GUI in the LSE code style.
 
-**Status (2026-11-10):** compiles in Release with no warnings against the AutoCAD.NET 25.1.0 reference package; the
-text-file diagnosis and repair logic and the wire-layer comparison logic passed a 90-check console smoke test on a copy
-of the real LSE template; the plugin has not yet been loaded into AutoCAD Electrical. See "Not verified on a
-workstation" below before trusting it on a live job.
+**Status (2026-11-12, build `2026-11-12-r7`):** compiles in Release with no warnings against the AutoCAD.NET 25.1.0
+reference package; the text-file diagnosis and repair logic and the wire-layer comparison logic passed a 90-check console
+smoke test on a copy of the real LSE template (2026-11-10); the findings grid, the scan grid, the help texts and the build
+tag pass the 45-check `tests\LSE_Doctor.SmokeTest` on a real `DataGridView` (the 90-check harness of 2026-11-10 is not in
+the tree). The user opened `LSEDOCTOR` in AutoCAD
+Electrical on 2026-11-12 and reported that the tick boxes did not respond; r7 rewrites the tick handling (see "Help in the
+windows"). r7 also adds the Vault behaviour below (all read-only files listed before any write, check-in reminder, Vault lines in `LSEDOCTORDIAG`); it compiles, but `VaultProbe` has not run against a real Vault install. No repair has yet been run inside AutoCAD Electrical. See "Not verified on a workstation" below before trusting
+it on a live job.
+
+## Vault working folder (r7)
+
+Projects normally live in the Vault working folder, where files that are not checked out are read-only.
+
+- Repair refuses before writing anything (and before the backup folder is created) when any file it would edit is
+  read-only. One message lists every such file and says to check them out in Vault first (the Vault tab in AutoCAD, or
+  Vault Explorer > Check Out).
+- After a successful repair the log (and `LSE_DoctorReport.txt`) lists the touched and created files inside the working
+  folder that now need to be checked in. The `_LSE_DOCTOR_BACKUP` folder is also new in the project folder; leave it out of the check-in.
+- `LSEDOCTORDIAG` shows the host .NET runtime, the installed Vault client with its .NET compatibility, and whether the
+  Vault add-in in AutoCAD is logged in. When the template project or template drawing is missing (bundled fallback in use)
+  and its path is inside the working folder, it says to select the folder in Vault Explorer and Get Latest Version.
+- The Doctor never checks files in or out itself.
+- In `LSEDOCTOR` a refusal is shown as "LSE_Doctor - repair refused". In the `LSEDOCTORSCAN` batch report the same
+  refusal is headed `<project> FAILED (rolled back)` although nothing was changed; read the message under it.
+- .NET 10: Autodesk moved AutoCAD 2026.1.2 and Vault 2026.4 to .NET 10 in August 2026 (no API changes); they belong
+  together. This net8.0-windows plugin still loads.
 
 ## Commands
 
@@ -27,7 +51,37 @@ workstation" below before trusting it on a live job.
 | `LSEDOCTOR` | Examine one project (defaults to the active project), review the findings grid, tick repairs, repair with backup |
 | `LSEDOCTORSCAN` | Walk a folder tree (default: the Custom Sales Order root), triage every `.wdp` found, batch-apply the recommended repairs |
 | `LSEDOCTORSETTINGS` | Template path, rules JSON, scan root, backup policy, drawing checks, LISP bridges |
-| `LSEDOCTORDIAG` | Runtime, settings, rules load, standard parse (counts, title block names, template drawing) |
+| `LSEDOCTORDIAG` | Build tag, runtime, settings, rules load, standard parse (counts, title block names, template drawing) |
+| `LSEDOCTORHELP` | The whole user guide (every window and every finding category) in a text window you can save or copy |
+
+## Help in the windows
+
+Every window has a **Help** button (a guide to that window: the steps, the grid, why some rows cannot be ticked, what
+Repair does, how to undo) and every control shows a tooltip when you hover over it. The status line at the bottom says
+what to do next after each action.
+
+In the findings grid a **Fix** box is ticked or unticked by clicking it, or by selecting the row and pressing the space
+bar. Rows the doctor can only report on (a line the template does not have, a drawing that is open in AutoCAD, a missing
+title block, a non-standard wire layer still in use, an attribute an older `WD_M` lacks) show the word **note** instead
+of a box; clicking such a row explains on the status line why there is nothing to tick. The scan grid shows **ok**
+(healthy), **review** (needs a decision in the Doctor) or **error** (could not be examined) where a project has no
+recommended repair. Until r7 those rows carried a normal-looking but read-only box that silently ignored clicks, and the
+box on repairable rows went through the `DataGridView` edit cycle; both were reported as "the check boxes do not work".
+
+### Every check box, and when it has an effect
+
+| Window | Check box | Effect | Saved? |
+|---|---|---|---|
+| `LSEDOCTOR` | Fix (grid column) | Ticked rows are applied by Repair ticked. Starts ticked for recommended repairs. Note rows have no box. | No; recomputed on every Examine |
+| `LSEDOCTOR` | Check every drawing: WD_M block, LSE title block and wire layers ... | Read when Examine runs (the button, the automatic examine on open, and the re-examine after a repair). Ticked: every DWG is opened in the background and the `WD_M`, title block and wire-layer findings appear. Unticked: text files only. Changing it does nothing until the next Examine. | No; starts from the setting "Check drawing contents by default" each time |
+| `LSEDOCTOR` | Show informational rows | Shows or hides Info rows at once. Hidden rows keep their ticks and are still repaired if ticked. | No; starts ticked |
+| `LSEDOCTORSCAN` | Fix (grid column) | Ticked projects get their recommended repairs from Repair ticked (recommended fixes). Only projects with recommended repairs have a box; others show ok, review or error. | No |
+| `LSEDOCTORSCAN` | Check drawing contents too | Read when you press Scan, and when a row is re-examined after Open in Doctor... or a batch repair. | Yes: written to the setting "Folder scan checks drawing contents too" when you press Scan |
+| `LSEDOCTORSETTINGS` | the five check boxes | Take effect the next time a window opens; see [docs/OPERATIONS.md](docs/OPERATIONS.md#6-settings-lsedoctorsettings). | Yes, on Save |
+
+Every window title ends with the build tag, for example `[2026-11-12-r7]`, and `LSEDOCTORDIAG` prints it. A loaded .NET
+DLL cannot be replaced while AutoCAD Electrical runs: close it completely before copying a new `LSE_Doctor.dll` into the
+bundle's `Contents\` folder, then check the title bar shows the new tag.
 
 ## What it checks and what it repairs
 
@@ -87,6 +141,19 @@ still holds in memory.
   `C:\Program Files\Autodesk\AutoCAD 2026`, or pass `-p:AcadDir=...`).
 - Without an install the project compiles against the `AutoCAD.NET` 25.1.0 reference package (compile-time only).
 
+### Smoke test (no AutoCAD needed)
+
+Build the plugin in Release first (the test references `bin\Release\LSE_Doctor.dll`), then from the plugin folder:
+
+```
+dotnet build -c Release
+dotnet build tests\LSE_Doctor.SmokeTest\LSE_Doctor.SmokeTest.csproj -c Release
+dotnet tests\LSE_Doctor.SmokeTest\bin\Release\LSE_Doctor.SmokeTest.dll
+```
+
+Expect `45 passed, 0 failed  (LSE_Doctor 2026-11-12-r7)`. It exercises the findings grid and the scan grid on a real `DataGridView` (tick handling,
+note rows, painting), the help texts and the build tag. It never touches a project, a drawing or the settings file.
+
 ## Deploy / load
 
 1. Build Release; copy the output folder (DLL, `LseDoctorRules.json`, `standard\`) to a share or each workstation.
@@ -112,6 +179,9 @@ still holds in memory.
   rules JSON is a guess: Autodesk documents the `WD_M` attribute names but not the layer xdata that marks a wire type.
   If a repaired layer is still not a wire type, inspect a template wire layer with the xdata editor and fix the pattern.
 - Meaning of the individual `?[n]` / `+[n]` indexes beyond `+[1]..+[4]`; the doctor compares them as opaque values.
+- That the Fix box responds to the first click inside AutoCAD's modal dialog. Since r7 the click is handled by the form
+  itself (`CellClick` and the space bar) instead of the `DataGridView` edit cycle, and the logic is exercised on a real
+  `DataGridView` outside AutoCAD; the in-host behaviour is still to be confirmed by the user.
 
 ## Documentation
 
@@ -119,10 +189,8 @@ still holds in memory.
 |---|---|
 | this README | overview, commands, checks and repairs, the repair transaction, configuration, build, deploy, what is not verified |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | components, dependency diagram, examine and repair data flow, rollback, threading model, design decisions, relationship to LSE Project Tools |
-| [docs/CODE-REFERENCE.md](docs/CODE-REFERENCE.md) | every file, type and public member, the four commands, the project and manifest files |
+| [docs/CODE-REFERENCE.md](docs/CODE-REFERENCE.md) | every file, type and public member, the five commands, the project and manifest files |
 | [docs/DATA-STORES.md](docs/DATA-STORES.md) | settings.json and the rules JSON field by field, the LSE template files, project files, backups, reports and logs |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | install, examine and repair step by step, the scan, the findings catalogue, settings, reading the log, every message, recovery by hand |
 | [docs/DEVELOPER-GUIDE.md](docs/DEVELOPER-GUIDE.md) | build with or without AutoCAD, debug, conventions, recipes, first-build checklist, test strategy, known gaps |
 | [docs/GLOSSARY.md](docs/GLOSSARY.md) | terms and file extensions |
-
-These documents are maintained with the `lse-documenter` agent definition in `../agents/lse-documenter.md`.

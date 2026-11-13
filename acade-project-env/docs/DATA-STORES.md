@@ -1,17 +1,21 @@
 # Data stores: LSE_Env
 
-Maintained by DCW. Last reviewed 2026-11-12.
+Maintained by DCW. Last reviewed 2026-11-13.
+
+Every file LSE_Env reads or writes: per-user settings, the shared rules JSON, profiles, the project's own files, the
+per-project marker, backups, reports, logs and snapshots. LSE_Env uses no database and no registry key; it does not
+talk to the Vault server, it only refuses to write read-only (not checked out) files.
 
 ## 1. Inventory
 
 | Store | Where | Written by | Read by |
 |---|---|---|---|
-| `settings.json` | `%APPDATA%\LSE\LSE_Env\` | `EnvSettingsForm`, `SettingsService.Remember`, the forms (last profile/scheme) | every command |
+| `settings.json` | `%APPDATA%\LSE\LSE_Env\` | `EnvSettingsForm`, `SettingsService.Remember` (after every successful apply), `EnvironmentForm` and `WireSchemeForm` (last profile/scheme after an apply). The window tick boxes are never written back | every command |
 | `LseEnvRules.json` | next to the DLL by default; `RulesConfigPath` may point at a share | nobody at run time (edited by hand) | every command |
 | Profiles `*.json` | `ProfilesFolder` (default `%APPDATA%\LSE\LSE_Env\Profiles\`, share it on the vault); `_retired\` inside it | `ProfilesForm`, `EnvironmentForm` Capture, first-use seeding from `profiles\` next to the DLL | `LSEENV`, `LSEENVPROFILES`, `LSEENVDIAG` |
 | `<project>.wdp` | the project folder | `ApplyService` (line edits only) | plan, snapshot, capture |
 | `<project>.wdt`, `<project>_wdtitle.wdl` | the project folder | `ApplyService` (whole-file copy when ticked) | plan (byte comparison) |
-| Drawings `*.dwg` | the project | `DrawingSettingsService.Apply` (`WD_M` values, wire-number blocks, layers of wire-number blocks) | inspect, wire read |
+| Drawings `*.dwg` | the project | `DrawingSettingsService.Apply` (`WD_M` values, wire-number blocks, layers of wire-number blocks). Closed drawings are saved in place; drawings open in the editor are changed in the session and left unsaved | inspect, wire read |
 | `<project>.lseenv.json` (marker) | next to the `.wdp` | `ApplyService` | plan, `LSEENVWIRES` label |
 | `_LSE_ENV_BACKUP\<stamp>\` | the project folder | `ApplyService` | rollback, recovery by hand |
 | `LSE_EnvReport.txt` | the project folder | `ApplyService` (append) | engineers |
@@ -27,15 +31,18 @@ Maintained by DCW. Last reviewed 2026-11-12.
 | `ProfilesFolder` | `%APPDATA%\LSE\LSE_Env\Profiles` | where profiles live; seeded from `profiles\` next to the DLL when empty |
 | `TemplateProjectPath` | the vault template `.wdp` (same as LSE_Doctor) | source of values for `fromTemplate` schemes |
 | `BackupFolderName`, `BackupsToKeep` | `_LSE_ENV_BACKUP`, 10 | per-project backups |
-| `ApplyToDrawings` | true | default for "Read every drawing" |
-| `ComputeFromTo` | true | default for "Trace wires" |
-| `RetagAfterApply` | false | default for "Queue retag" |
-| `ReactivateAfterApply` | true | reload the project when it is the active one |
+| `ApplyToDrawings` | true | starting state of "Read every drawing" (`LSEENV`) and "Write every drawing's WD_M too" (`LSEENVWIRES`) |
+| `ComputeFromTo` | true | starting state of "Trace wires" in both |
+| `RetagAfterApply` | false | starting state of "Queue retag" in both |
+| `ReactivateAfterApply` | true | reload the project after an apply when it was the active one at command start |
 | `ShowReportAfterApply` | true | show the run log after apply |
+| `RecentProjects` | empty | up to 25, newest first; the `LSEENV` project list |
 | `ActiveProjectLisp` | `ace_getactiveproject` into `USERS1` | how the active project is found |
 | `ActivateProjectLisp` | `c:wd_makeproj_current "{WDP}"` | how it is reloaded |
 | `RetagLisp` | `(c:wd_wnum)` with a `boundp` guard | what "Queue retag" sends |
-| `LastProfile`, `LastScheme`, `RecentProjects` | | dialog presets |
+| `LastProfile`, `LastScheme` | empty | dialog presets, saved after an apply. While both are empty, `LSEENV` opened on an active project starts with no profile and no scheme and its automatic first plan stops with "Pick a customer profile or a wire scheme first." |
+
+`ConnectTolerance` (0.02) is not in the shipped rules file; the code default applies.
 
 ## 3. LseEnvRules.json
 
@@ -78,8 +85,9 @@ One JSON file per profile, file name derived from the profile name with invalid 
 
 `values` go through the setting map and respect `protected`; `properties` / `options` / `drawing` are raw line or
 attribute overrides that bypass map-level protection but not the rules-level `protectedOptions` /
-`protectedProperties`. A raw override for the same line as a `values` entry wins. `fromTo` replaces the scheme's
-block when present and the scheme is a From/To scheme.
+`protectedProperties`. A raw override for the same line as a `values` entry wins. `fromTo` (written only when "Own
+From/To settings" is ticked in the profile editor) replaces the scheme's block when the scheme is a From/To scheme, is
+used on its own when the profile has no scheme, and is ignored with any other scheme.
 
 ## 5. The marker `<project>.lseenv.json`
 

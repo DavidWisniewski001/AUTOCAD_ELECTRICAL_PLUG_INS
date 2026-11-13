@@ -1,6 +1,6 @@
 # Architecture: LSE Project Tools (AutoCAD Electrical 2026 plugin)
 
-Maintained by DCW. Last reviewed 2026-11-10.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 LSE Project Tools is a .NET plugin that runs inside AutoCAD Electrical and creates a complete Lake Shore Electric job in one guided run: the job folder in the right place under `Custom Sales Order` on the vault working folder, every `<job>-Ennn.dwg` sheet from the LSE template drawings with the `ECAD_LSE_CUSTOM_TB_2.0` title block and the WD_M block filled in, the `<job>.wdp` project file with the eight LSE description lines and the template project's settings, the template's own `.wdt` title block mapping and `_wdtitle.wdl` label file renamed for the job, and a `<job>.aepx`. It exists so that a new job starts from the live LSE standard (the template project "CUSTOM PROJECT TEMPLATE 2.0") every time, instead of being copied by hand from an older job. It is the AutoCAD Electrical counterpart of the Inventor add-in in `../inventor-addin` and shares its shape: a wizard, a JSON standard, a logged transaction with rollback.
 
@@ -12,7 +12,7 @@ An AutoCAD Electrical project is a text file (`.wdp`) that lists drawings and ca
 
 ## 2. Components
 
-One .NET 8 assembly, `LSE.AutoCADElectrical.ProjectTools.dll`, loaded into AutoCAD Electrical with `NETLOAD` or a `.bundle`. Ten source files, one namespace `LSE.AutoCADElectrical.ProjectTools`.
+One .NET 8 assembly, `LSE.AutoCADElectrical.ProjectTools.dll`, loaded into AutoCAD Electrical with `NETLOAD` or a `.bundle`. Eleven source files, one namespace `LSE.AutoCADElectrical.ProjectTools`.
 
 | Layer | File | Responsibility |
 |---|---|---|
@@ -25,6 +25,7 @@ One .NET 8 assembly, `LSE.AutoCADElectrical.ProjectTools.dll`, loaded into AutoC
 | AutoCAD Electrical bridge | `src/AcadeBridgeService.cs` | Sends the activation LISP to the command line; opens a drawing. |
 | Configuration | `src/SettingsService.cs` | `SettingsService` (settings.json, vault discovery, path defaults), `TemplateService` (templates JSON and its validation, token expansion, template resolution, job number rule, unit specs). |
 | Diagnostics | `src/DiagnosticsService.cs` | Builds the `LSEPROJECTDIAG` report. |
+| Vault awareness | `src/VaultProbe.cs` | Shared helper, identical in every LSE plugin (2026-11-12-r7). Reports the host .NET runtime, the installed Vault client and whether it can load in this process, and whether the Vault add-in is logged in; detects read-only (not checked out) files and paths inside the vault working folder; builds the check-in reminder. It only inspects assemblies already loaded and DLL metadata on disk; it never logs in, checks out or checks in. |
 | Data shapes | `src/Models.cs` | Settings, template schema (vault, job rules, lines, title block, WD_M, unit specs, product lines, drawing sets), request, result, `.wdp` document model, drawing job and outcome. |
 
 Supporting files:
@@ -49,12 +50,14 @@ Supporting files:
  |                           |-- TemplateService.JobNumberOk / Expand / SafeName / ComposeUnitSpecs (per step)
  |                           |-- ProjectTransactionService.Validate(templates, request) (step 3 and review)
  |                           '-- ProjectTransactionService.Execute (Create button)
+ |                                 |-- VaultProbe.RequireWritable (existing folder only)
  |                                 |-- WdpFileService.Parse (LSE template project)
  |                                 |-- DrawingFactoryService.Create (per drawing, template resolved per row)
  |                                 |     '-- Autodesk.AutoCAD.DatabaseServices (side Database)
  |                                 |-- WdpFileService.Write
  |                                 |-- WdpFileService.CopySidecar (.wdl, .wdt) or WriteLabels / WriteMapping
  |                                 |-- WdpFileService.WriteConfiguration (.aepx)
+ |                                 |-- VaultProbe.CheckinReminder (report lines)
  |                                 '-- SettingsService.Save (recent projects)
  |     after the form closes:   AcadeBridgeService.ActivateProject -> Document.SendStringToExecute (LISP)
  |                               AcadeBridgeService.OpenDrawing    -> DocumentManager.Open
@@ -62,12 +65,13 @@ Supporting files:
  |-- LSEPROJECTSETTINGS --> ProjectSettingsForm -> SettingsService.Save
  '-- LSEPROJECTDIAG -----> DiagnosticsService.BuildReport
                               |-- SettingsService.Load, DiscoverVaultRoot
+                              |-- VaultProbe.Report, InVaultWorkingFolder
                               |-- TemplateService.Load, ResolveTemplate
                               |-- DrawingFactoryService.Inspect (drawing template)
                               '-- WdpFileService.Parse, ExistingCaseInsensitive (template project and sidecars)
 ```
 
-External systems touched: the file system (vault working folder, job folder, settings, logs), AutoCAD's database API (in-process), and the AutoCAD Electrical LISP environment (one expression sent to the command line). No database, no network, no Vault API: the vault working folder is used as plain file system and the new job folder is not checked in.
+External systems touched: the file system (vault working folder, job folder, settings, logs), AutoCAD's database API (in-process), and the AutoCAD Electrical LISP environment (one expression sent to the command line). No database, no network, no Vault API calls: the vault working folder is used as plain file system and the new job folder is not checked in. `VaultProbe` only reads (the read-only attribute of files, the metadata of the Vault client DLL under `Program Files\Autodesk\Vault*\Explorer`, and the connection object of a Vault add-in already loaded in AutoCAD, by reflection).
 
 ## 4. End-to-end data flow
 
@@ -85,7 +89,7 @@ External systems touched: the file system (vault working folder, job folder, set
 | Step | Action | On failure |
 |---|---|---|
 | 1 | `Validate(templates, request)`: job number against `job.numberPattern`, title and every required line, project name, rooted folder, drawing template exists, template project exists when set, at least one drawing, valid and unique file names, sheet values, per-drawing templates resolved in the template folder exist. | Throws before anything is touched. |
-| 2 | Job folder: create it with its missing parent folders (the job folder is remembered for rollback), or reuse an existing folder only if it holds no `<name>.wdp` and is either empty or `AllowExistingFolder` is set. | Throws. |
+| 2 | Job folder: create it with its missing parent folders (the job folder is remembered for rollback). An existing folder is reused only if it holds no `<name>.wdp`, no `<name>_wdtitle.wdl`, `<name>.wdt` or `<name>.aepx` (matched case-insensitively), its `LSE_ProjectReport.txt` is not read-only (`VaultProbe.RequireWritable`; a Vault file that is not checked out is read-only), and it is either empty or `AllowExistingFolder` is set. | Throws before anything is written. |
 | 3 | Template project: parse it and copy its `+[n]` options, `?[n]` properties and text encoding into the new document; raise the description line count to its highest index if that exceeds the JSON's. Without a template project nothing is copied and the log says AutoCAD Electrical defaults will apply. | Throws (file missing or unreadable). |
 | 4 | Pre-check that none of the target DWG paths exist. | Throws. |
 | 5 | Locate the WD_M library block (`wd_m.dwg`) for templates that lack WD_M. | Logged, not fatal. |
@@ -94,7 +98,7 @@ External systems touched: the file system (vault working folder, job folder, set
 | 8 | `<name>_wdtitle.wdl` when `WriteWdlFile` is set: copy the template project's `.wdl` renamed when `CopyTemplateSidecars` is set and one exists; otherwise generate it from the JSON. | Throws; rollback. |
 | 9 | `<name>.wdt` when `WriteWdtFile` is set: copy the template project's `.wdt` renamed when `CopyTemplateSidecars` is set and one exists; otherwise generate it when the JSON names at least one title block, else log that it was skipped. | Throws; rollback. |
 | 10 | Write `<name>.aepx` when `WriteAepxFile` is set: the template's shape with one `<Drawing>` per sheet. | Throws; rollback. |
-| 11 | Log `Status: SUCCESS`, write `LSE_ProjectReport.txt` into the job folder, push the `.wdp` path onto `RecentProjects` (25 kept) and save settings. | Not rolled back; the project already exists. |
+| 11 | Log `Status: SUCCESS`, then the Vault check-in reminder (`VaultProbe.CheckinReminder`: every created file and the job folder that lie inside the vault working folder, with "Add to Vault" advice; nothing when the jobs root is outside the vault), write `LSE_ProjectReport.txt` into the job folder (overwriting one already there in a reused folder), push the `.wdp` path onto `RecentProjects` (25 kept) and save settings. | Still inside the `try`: if the report or `settings.json` cannot be written, the whole project is rolled back even though the log already says `Status: SUCCESS`. A report written before a failed settings save is not in the created list and stays, so the folder is then not removed. |
 
 Rollback deletes every file recorded in the created list in creation order (copied sidecars included), removes the job folder if this run created it and it is now empty (parent product line folders created on the way stay), writes the full log to `%APPDATA%\LSE\AutoCADElectricalProjectTools\Logs\ProjectReport_<yyyyMMdd_HHmmss>.txt`, and rethrows as `InvalidOperationException` whose message is the whole log. Files are written and copied through a `.tmp` sibling and `File.Move(..., true)`, so a half-written `.wdp` is never left behind.
 
@@ -138,7 +142,8 @@ Encoding: new projects are written as UTF-8 with BOM (`new UTF8Encoding(true)`),
 - All commands run on AutoCAD's main thread. `LSENEWPROJECT` and `LSEPROJECTACTIVATE` are `CommandFlags.Modal | CommandFlags.Session` so they can open documents and send command-line input after the modal form closes. The settings and diagnostics commands are `Modal` only.
 - The wizard runs the transaction synchronously on the UI thread and refreshes the review pane after each log line. AutoCAD is unresponsive for the duration (a few seconds per drawing).
 - Project activation is asynchronous by nature: the LISP expression is queued with `SendStringToExecute` and runs after the command ends. The plugin cannot read its result; it prints to the command line instead.
-- No COM, no ADODB, no Vault API. The only unmanaged dependency is AutoCAD's own managed API.
+- No COM, no ADODB, no Vault API calls. The only unmanaged dependency is AutoCAD's own managed API. `VaultProbe` uses reflection on assemblies the Vault add-in has already loaded and reads DLL metadata with `System.Reflection.Metadata`; nothing from the Vault SDK is referenced at compile time.
+- .NET: the DLL targets `net8.0-windows`. AutoCAD 2026.1.2 and Vault 2026.4 moved to .NET 10 together (August 2026); a .NET 8 plugin still loads in a .NET 10 host. `LSEPROJECTDIAG` shows the host runtime and whether the installed Vault client matches it.
 
 ## 9. Design decisions
 
@@ -155,6 +160,7 @@ Encoding: new projects are written as UTF-8 with BOM (`new UTF8Encoding(true)`),
 | Activation through one configurable LISP expression | `c:wd_makeproj_current` comes from an Autodesk forum answer, not the API reference. Keeping it in settings lets a site fix the name without a rebuild, and `boundp` keeps a missing function harmless. |
 | Side database instead of opening each drawing | Faster, no document switching, no prompts, and the active document is never modified. |
 | JSON standard beside the DLL with a settings override | Same pattern as the catalog and footprint tools: one shared copy on the vault keeps every workstation identical. |
+| Refuse a Vault-locked target instead of checking it out | The other AutoCAD plugins except Catalog Tools never talk to Vault; a read-only file in the working folder is the visible sign of "not checked out", and refusing before the first write keeps rollback simple. The engineer adds the new job to Vault afterwards, guided by the reminder in the report. |
 | Rollback by deleting what was created, not by snapshotting | A new project has no prior state to restore; deleting the recorded files and the new folder is complete. |
 | Two code densities | Services and small forms are compact, one member per line; the wizard and the AutoCAD database code are expanded. This matches `../STYLE-GUIDE.docx` and the sibling projects. |
 

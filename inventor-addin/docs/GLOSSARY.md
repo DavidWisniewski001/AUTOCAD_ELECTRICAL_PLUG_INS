@@ -1,6 +1,6 @@
 # Glossary: LSE Footprint Tools
 
-Maintained by DCW. Last reviewed 2026-11-08.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 Terms used across the code and documentation, in alphabetical order.
 
@@ -46,6 +46,12 @@ Terms used across the code and documentation, in alphabetical order.
 | Type code | Two letters inside the part number describing the kind of part within a tab, for example `FH` fuse holder. |
 | `USER1` | Catalog column AutoCAD Electrical leaves free for the user; LSE stores the part number here. |
 | Vault | Autodesk Vault, the document management server. Optional; when the catalog is Vault-controlled the add-in checks it out and in around the insert. |
-| VDF | Vault Development Framework, the client SDK loaded by reflection from the Vault Explorer folder. |
+| VDF | Vault Development Framework, the client SDK used by reflection (from the process or the Vault Explorer folder). |
+| Vault add-in session | The login held by Autodesk's Vault add-in inside Inventor. When present the add-in uses it and never shows a login dialog or logs it out. |
+| Vault working folder | The local mirror of the vault, `C:\_Lake_Shore_E_Vault\`. Files there that are not checked out are read-only; the add-in refuses to write them and lists touched files to check in after success. |
+| Check-in reminder | The lines at the end of a successful report naming touched files in the Vault working folder (`VaultProbe.CheckinReminder`). |
+| .NET 10 move | Autodesk's August 2026 updates (AutoCAD 2026.1.2, Inventor 2026.4, Vault 2026.4) moved those hosts to .NET 10. A .NET 10 Vault client cannot load into a host still on .NET 8, so they must be updated together. |
+| `SupportedSoftwareVersionGreaterThan` | `.addin` element limiting which Inventor versions load the add-in. `29..` means newer than Inventor 2025, that is 2026 and later. |
+| VaultFakeTest | The console test in `tests/VaultFakeTest` that runs the Vault code against stub Vault assemblies. |
 | Wizard | The `FootprintWizardForm` window opened by the **LSE Footprint** ribbon button. |
 | `WEBLINK` | Catalog column for a datasheet URL, written when the family table has it. |

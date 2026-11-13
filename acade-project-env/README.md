@@ -26,15 +26,15 @@ template) and follows the same shape: settings in `%APPDATA%\LSE\LSE_Env\setting
 transaction with backup, verify and rollback, WinForms GUI in the LSE code style. Where the Doctor says "this differs
 from the template", LSE_Env says "this is what the customer asked for" and records it in `<project>.lseenv.json`.
 
-**Status (2026-11-12, r6):** compiles in Release with no warnings against the AutoCAD.NET 25.1.0 reference package; the
-smoke test in `tests\LSE_Env.SmokeTest` (89 checks: byte-identical `.wdp` round trip, rules validation, profile round trip,
+**Status (2026-11-12, r7):** compiles in Release with no warnings against the AutoCAD.NET 25.1.0 reference package; the
+smoke test in `tests\LSE_Env.SmokeTest` (91 checks in r6, two more in r7 for the two-file read-only refusal: byte-identical `.wdp` round trip, rules validation, profile round trip,
 wire-network tracing, From/To composition, planning, apply, verify, rollback, read-only refusal, capture, snapshot diff,
 the help texts, the error log, and since r6 the `LSEENV` plan grid filled on a real `DataGridView` and the build label)
 passes, all through fake drawing bridges. First run inside AutoCAD Electrical on 2026-11-12 (the dialog, Plan and the
 error dialog have been seen in the host; the writes have not). r6 reworks the plan grid so note rows are never built by
 replacing a cell (`PlanGridService`, the cause of the r3 "ReadOnly property of a cell" crash) and stamps the build tag
 (`BuildInfo.Release`) on every window title, the error dialog, the error log and `LSEENVDIAG`, so a stale DLL is obvious.
-See "Not verified on a workstation" before trusting it on a live job. In particular the **setting map** (which `?[n]`
+r7 adds `VaultProbe` (shared with the other plugins): one refusal naming every read-only file, a check-in reminder at the end of the apply log (files on disk only; drawings open in the editor are not saved by LSE_Env), and three Vault/runtime lines in `LSEENVDIAG`. Note: AutoCAD 2026.1.2 and Vault 2026.4 moved to .NET 10 together (no API changes); this net8.0-windows plugin still loads, and the two products belong together. See "Not verified on a workstation" before trusting it on a live job. In particular the **setting map** (which `?[n]`
 line and `WD_M` attribute hold each setting) is inferred from the template's values, not documented by Autodesk, and
 `LSEENVSNAPSHOT` exists to confirm it on the workstation in ten minutes.
 
@@ -61,14 +61,34 @@ line and `WD_M` attribute hold each setting) is inferred from the template's val
 | Project | `<project>.lseenv.json` written with profile, scheme, changed indexes and values | yes |
 
 Notes (never applied) cover: a setting the map has not located yet (`referenceStyle` for X-Y grid), a protected
-line, a drawing that is open, unreadable or has no `WD_M`, an older `WD_M` that lacks the attribute (with the Autodesk
-"Update to New WD_M Block" hint), a template-based scheme whose template is unreachable, networks with fewer than two
-tagged devices.
+line, a drawing that is missing on disk, unreadable (including an open drawing whose session could not be read) or
+has no `WD_M`, an older `WD_M` that lacks the attribute (with the Autodesk "Update to New WD_M Block" hint), a drawing
+that could not be traced, and a drawing whose networks already carry their From/To numbers. A template-based scheme
+whose template is unreachable and networks with fewer than two tagged devices are reported in the plan log and the
+From/To report, not as grid rows.
+
+## The tick boxes (read this before "the box does nothing")
+
+| Window | Tick box | Takes effect |
+|---|---|---|
+| `LSEENV` | Read every drawing | at the next **Plan**: plans `WD_M` rows per drawing. Unticked, no drawing is read, no `WD_M` rows appear and wire tracing is skipped too |
+| `LSEENV` | Trace wires | at the next **Plan**, and **only together with Read every drawing**: plans From/To or un-fix rows |
+| `LSEENV` | Queue retag after apply | its state when **Apply ticked** is pressed; the retag runs after the window closes |
+| `LSEENV` | Apply? (grid) | immediately; chooses which planned rows Apply ticked writes. Reset by every Plan |
+| `LSEENV` | Show notes | immediately; shows or hides note rows |
+| `LSEENVWIRES` | Write every drawing's WD_M too / Trace wires / Queue Insert Wire Numbers | at Preview / Switch; Trace wires works on its own here |
+| `LSEENVPROFILES` | Own From/To settings, and the five From/To boxes under it | when the saved profile is next planned in `LSEENV` with a From/To scheme; the five are greyed until Own From/To is ticked |
+| `LSEENVSNAPSHOT` | Include every drawing's WD_M | at Take A / Take B |
+| `LSEENVSETTINGS` | the five boxes | the first three are only the starting state of the window boxes above; the last two act directly |
+
+Changing anything in the `LSEENV` header (project, profile, scheme, tick boxes) does not touch the grid: press Plan
+again, or Apply ticked applies the previous plan. Full detail per box: [docs/OPERATIONS.md](docs/OPERATIONS.md)
+sections 4.3, 4.4, 5, 6.1 and 9.
 
 ## The apply transaction
 
-1. Validate: at least one change is ticked, the `.wdp` exists, a drawing writer is available when drawing changes are ticked.
-2. Refuse read-only files (before any backup, with the Vault check-out hint).
+1. Validate: at least one change is ticked (in `LSEENVWIRES`, which has no grid, the recommended changes count as ticked), the `.wdp` exists, a drawing writer is available when drawing changes are ticked.
+2. Refuse before writing when any target is read-only (Vault: not checked out), listing all of them; the apply log lists what to check in afterwards; LSEENVDIAG shows Vault client/add-in/runtime.
 3. Back up every file that will be touched to `<project folder>\_LSE_ENV_BACKUP\<yyyyMMdd_HHmmss>\`.
 4. Edit the `.wdp` line by line and write it once; copy `.wdt`/`.wdl`; then per drawing (a closed one opened once as a side database and saved in place; an open one changed through its Document under `LockDocument` and left unsaved): `WD_M` values, From/To wire numbers, un-fix; then write the marker.
 5. Verify every ticked change by reading the files and drawings again; anything still different is listed as UNRESOLVED.
@@ -78,9 +98,16 @@ tagged devices.
 Any other error in a form or command shows a three-part dialog (What happened / Where / What to do) and writes the full
 exception, step, time, user and machine to `%APPDATA%\LSE\LSE_Env\Logs\Error_<stamp>.txt` (`ErrorService`).
 
-If the project is the active one, LSE_Env queues the reload LISP (`c:wd_makeproj_current`) after the dialog closes so
-the Project Manager rereads the `.wdp`; with "Queue retag" ticked it then queues `c:wd_wnum` (Insert Wire Numbers) so
-the engineer can run it project-wide. Both are settings, both unverified.
+If the project is the active one (and "Reload the active project" is on), LSE_Env queues the reload LISP
+(`c:wd_makeproj_current`) after the dialog closes so the Project Manager rereads the `.wdp`; with "Queue retag" ticked
+at the moment of the apply it then queues `c:wd_wnum` (Insert Wire Numbers) so the engineer can run it project-wide.
+Both happen only after a successful apply, both are settings, both unverified.
+
+## Versioning
+
+The build tag `BuildInfo.Release` (`2026-11-12-r7`) is shown in every window title, the error dialog, the error log
+and `LSEENVDIAG`. The assembly version is `1.7.0` (`LSE_Env.csproj`, `InformationalVersion` = the build tag). The
+bundle manifest still says `AppVersion="1.6.0"`; bump it with the next release (it does not affect loading).
 
 ## Configuration
 
@@ -142,10 +169,8 @@ the engineer can run it project-wide. Both are settings, both unverified.
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | components, dependency diagram, plan and apply data flow, the From/To engine, rollback, design decisions, relationship to LSE_Doctor |
 | [docs/CODE-REFERENCE.md](docs/CODE-REFERENCE.md) | every file, type and public member, the six commands, the project and manifest files |
 | [docs/DATA-STORES.md](docs/DATA-STORES.md) | settings.json, the rules JSON, profiles, the marker, snapshots, backups, reports and logs |
-| [docs/OPERATIONS.md](docs/OPERATIONS.md) | install, confirming the setting map, applying a profile, switching schemes, profiles, reading the log, messages, recovery by hand |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | install, confirming the setting map, how the `LSEENV` window works (Plan, then tick, then Apply), every tick box and when it has an effect, switching schemes, profiles, settings field by field, reading the log, messages, recovery by hand |
 | [docs/DEVELOPER-GUIDE.md](docs/DEVELOPER-GUIDE.md) | build with or without AutoCAD, the smoke test, conventions, recipes, first-build checklist, known gaps |
 | [docs/GLOSSARY.md](docs/GLOSSARY.md) | terms and file extensions |
 
-These documents are maintained with the `lse-documenter` agent definition in `../agents/lse-documenter.md`.
-
-Maintained by DCW. Last reviewed 2026-11-12.
+Maintained by DCW. Last reviewed 2026-11-13.

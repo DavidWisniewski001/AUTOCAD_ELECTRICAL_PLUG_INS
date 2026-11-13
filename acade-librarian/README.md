@@ -184,7 +184,7 @@ All of these are optional and default sensibly; older settings files keep workin
 
 ## Known gaps / next refinements
 
-- No Vault integration beyond the guard: the Librarian refuses read-only (not checked out) targets before writing and lists what to check in afterwards, but does not check files in or out. New files (DWG, PNG) are not checked for being new-to-Vault. `../inventor-addin/src/FootprintTransactionService.cs` (`VaultCatalogService`) shows the reflection approach if it is wanted. Unverified against a live Vault: the read-only attribute is assumed to reflect check-out state, and the Vault client / add-in session detection in `VaultProbe`.
+- No Vault integration beyond the guard: the Librarian refuses read-only (not checked out) targets before writing and lists what to check in afterwards, but does not check files in or out. New files (DWG, PNG) are not checked for being new-to-Vault. `../inventor-addin/src/VaultCatalogService.cs` shows the reflection approach if it is wanted. Unverified against a live Vault: the read-only attribute is assumed to reflect check-out state, and the Vault client / add-in session detection in `VaultProbe`.
 - No rename or move of an existing library item: the audit tells you what is wrong, the wizard files a correctly named copy, and the old file and its menu entry are retired by hand.
 - The audit does not edit the menus (no automatic repair). Everything it reports has a suggested manual or Librarian action.
 - Workbook tabs without a "Part # Segment" table or without type codes (`LSE LABELS & NAMEPLATES`, `LSE CHEMICALS & CONSUMABLES` on 2026-11-10) are skipped, so no part number can be issued for them until the tab gets a naming block.

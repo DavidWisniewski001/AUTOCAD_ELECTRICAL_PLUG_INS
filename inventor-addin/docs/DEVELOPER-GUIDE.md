@@ -1,6 +1,6 @@
 # Developer guide: LSE Footprint Tools
 
-Maintained by DCW. Last reviewed 2026-11-08.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 How to build, debug, extend and regenerate the add-in. Read [ARCHITECTURE.md](ARCHITECTURE.md) for the design and [CODE-REFERENCE.md](CODE-REFERENCE.md) for member-level detail.
 
@@ -17,9 +17,13 @@ inventor-addin/
   README.md                            overview, format, writes, build, deploy, verify, gaps
   config/LseNamingStandard.json        codes extracted from the LSE workbook; copied to output
   docs/                                this documentation set
-  src/*.cs                             eleven source files, one namespace
+  docs/pending/                        paused lock + ASSEMBLYCODE work (note, diff, ready-made file)
+  src/*.cs                             thirteen source files, one namespace
+  tests/VaultFakeTest/                 Vault code against a stub SDK (FakeSdk/ = four stub assemblies)
   tools/extract_naming_standard.py     workbook to JSON extractor
 ```
+
+`<Compile Remove="tests\**" />` in the `.csproj` keeps the test sources out of the add-in.
 
 ## 3. Build
 
@@ -49,11 +53,22 @@ Project settings worth knowing:
 
 The build copies the `.addin` and `LseNamingStandard.json` next to the DLL.
 
+Versioning: there is no `<Version>` in the project and no build tag anywhere in the UI, so every build reports assembly version 1.0.0.0. Identify a build by its release zip name (`LSE.Inventor.FootprintTools-<date>-r<n>.zip`). If a visible version is wanted, the AutoCAD plugins' `BuildInfo.cs` pattern (a build tag shown in window titles and diagnostics) is the model to copy; that would be a code change for the guardian, not done here.
+
+### Test
+
+```
+dotnet build tests\VaultFakeTest\VaultFakeTest.csproj -c Release
+dotnet tests\VaultFakeTest\bin\Release\VaultFakeTest.dll
+```
+
+Expect `ALL PASS` (27 checks, exit code 0). The program's optional first argument is the folder treated as the Vault Explorer folder; it defaults to its own output folder, where the stub DLLs are copied. Run it after any change to `src/VaultCatalogService.cs` or `src/VaultProbe.cs`, and keep both files identical to the copies in `../acade-catalog-tools/` (namespace and `AppName` aside). There are no tests of the wizard, geometry, DXF or Access code; test those on a workstation with copies of both MDBs.
+
 ## 4. Debugging inside Inventor
 
 1. Build Debug. Point the `.addin` manifest's `<Assembly>` at `bin\Debug\LSE.Inventor.FootprintTools.dll` and copy the manifest into `%APPDATA%\Autodesk\Inventor 2026\Addins\`.
 2. In Visual Studio set the project's debug launch to the Inventor executable (`Inventor.exe` in the Inventor `Bin` folder) or attach to a running Inventor.
-3. Inventor's **Add-In Manager** shows load errors. `LoadOnStartUp` is 1 in the manifest; set **Load Behavior** to *Loaded/Unloaded* while iterating so Inventor can be left running.
+3. The ribbon panel is only created when Inventor calls `Activate` with `firstTime` true. If the panel is missing after the first load (for example after a ribbon reset), Inventor will not re-add it on its own; raising `UserInterfaceVersion` in the manifest is the usual way to force a fresh first-time activation (not verified here). Inventor's **Add-In Manager** shows load errors. `LoadOnStartUp` is 1 in the manifest; set **Load Behavior** to *Loaded/Unloaded* while iterating so Inventor can be left running.
 4. Use the wizard's log pane: every guarded action logs `ERROR: <message>`. The full exception text for ribbon-level failures appears in a message box from `StandardAddInServer.Run`.
 5. For transaction failures read `TransactionReport.txt` in the backup folder; the exception message thrown from `FootprintTransactionService.Execute` is that same text.
 
@@ -81,7 +96,7 @@ Items that could not be checked without the tools installed. Work through them i
 4. `Arc2d.SweepAngle` sign convention. The writer handles both signs; confirm one arc visually in AutoCAD.
 5. The footprint `ATTDEF` set against AutoCAD Electrical 2026's footprint attribute help, and that AcadE inserts a plain DWG with those attributes as a footprint.
 6. `SaveAs(dwg, 64)`: confirm 64 is `ac2018_dwg` in the installed AutoCAD's `AcSaveAsType`; the code falls back to the default format if the call is rejected.
-7. Vault: the reflection calls into `WebServiceManager`, `WinAuthCredentials`, `CheckoutFile`, `CheckinFile` and the `UndoCheckout*` search were copied from the AutoCAD Electrical plugin and have not been exercised from Inventor.
+7. Vault: `VaultCatalogService` / `VaultProbe` were rewritten 2026-11-12 for Vault 2025/2026 shapes and pass `tests/VaultFakeTest` (build it, run `bin\Release\VaultFakeTest.dll`, expect `ALL PASS`) against a stub SDK; they have not run against a real Vault server, Inventor's Vault add-in session, the login dialog or a .NET 10 Inventor + Vault 2026.4.
 8. ADODB `OpenSchema(20)` field positions (table name at index 2, type at index 3) with the installed ACE provider.
 
 ## 7. Conventions
@@ -111,9 +126,16 @@ Typical changes and where they go:
 | Description generator | `FootprintWizardForm` step 3; the tab's `descriptionPattern` is already shown as placeholder text. |
 | Change part-number segment lengths | `format` in the JSON only. Do not change after numbers have been issued. |
 
-## 9. Known gaps (as of 2026-11-08)
+## 9. Known gaps (as of 2026-11-13)
 
 - Never compiled or run (section 1).
+- Suspected defects found by reading the code 2026-11-13 (not fixed; for the guardian and the user to decide):
+  - `src/FootprintTransactionService.cs` line 10 versus line 15: in Vault mode the part-number scan and duplicate check read the working copy before `VaultCatalogService.Checkout` downloads the latest version, so a stale working copy can issue a duplicate number or accept a duplicate MPN. The line 8 backup is also the pre-download copy.
+  - `src/FootprintTransactionService.cs` line 18 failure after line 17 check-in: rollback restores the local catalog but the row stays in Vault, and line 21 logs "Vault undo checkout: PASS" although `UndoCheckout` found nothing to undo.
+  - `src/VaultCatalogService.cs` lines 55 and 67: the check-in error messages say the working copy holds the new record and is still checked out, but the transaction's rollback immediately restores the backup and undoes the checkout.
+  - `src/FootprintTransactionService.cs` line 13: a `LsePartAttribute` of `MFG` or `CAT` makes the attribute dictionary initialiser throw a duplicate-key error; `SettingsForm.Save` does not reject those values.
+  - `src/FootprintTransactionService.cs` line 6: the backup stamp folder is created before the lock, so lock contention leaves empty folders in `LSE_Catalog_Backups`.
+- `docs/pending/PENDING-LOCK-AND-ASSEMBLYCODE.md` still describes `src\` as identical to r4; the r7 Vault work changed it. The pending items themselves are still open.
 - The LSE workbook's *LSE Recommended Part Number* columns may hold numbers never imported into the catalog; those can collide with issued numbers. Import or reconcile first.
 - Each issue and each preview scans every family table (about 1.3 million rows). A few seconds on a LAN share.
 - `MANUFACTURER` tables in `footprint_lookup.mdb` must match the catalog `MANUFACTURER` value exactly.
@@ -124,4 +146,4 @@ Typical changes and where they go:
 - `ReadUser1StartingWith` swallows per-table errors, so a table that fails to read (permissions, corruption) is silently excluded from the scan and could make the add-in issue a number already used there.
 - The imported model stays open in Inventor after a create.
 - `LSE_Catalog_Backups` is never pruned.
-- The footprint DWG and `footprint_lookup.mdb` are not Vault-controlled.
+- The footprint DWG and `footprint_lookup.mdb` are not Vault-controlled (read-only check before writing; check-in reminder after success).

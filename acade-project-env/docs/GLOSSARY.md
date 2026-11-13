@@ -1,6 +1,8 @@
 # Glossary: LSE_Env
 
-Maintained by DCW. Last reviewed 2026-11-12.
+Maintained by DCW. Last reviewed 2026-11-13.
+
+Terms, acronyms and file types used by LSE_Env and its documents.
 
 | Term | Meaning |
 |---|---|
@@ -10,6 +12,11 @@ Maintained by DCW. Last reviewed 2026-11-12.
 | Confidence | Per setting-map row: `documented` (Autodesk documents it), `inferred` (deduced from the template's values), `unknown` (a guess), `verified` (confirmed with `LSEENVSNAPSHOT` on a workstation). |
 | Protected line | A `?[n]` / `+[n]` index (rules `protectedOptions` / `protectedProperties`) or a map row (`protected: true`) that no profile may change. Default: the library and menu paths. |
 | Plan | The list of changes `LSEENV` computes before anything is written; each change is a row in the grid and is ticked or not. |
+| Note row | A plan row that only informs (change kind `Info`): it shows the word "note" where the Apply? box would be and can never be applied. "Show notes" hides them. |
+| Recommended | A change LSE_Env ticks by default. Everything is recommended except `.wdt`/`.wdl` copies and un-fixing wire numbers when the project has no From/To record; those rows are yellow. `LSEENVWIRES` applies only recommended changes. |
+| Header tick boxes | "Read every drawing", "Trace wires" and "Queue retag" in `LSEENV`: inputs to the next Plan (the first two) or to Apply (the third), not live switches. |
+| Build tag | `BuildInfo.Release`, for example `2026-11-12-r7`, shown in square brackets at the end of every window title; tells a stale DLL apart. |
+| Vault working folder | The local copy of the Vault (`C:\_Lake_Shore_E_Vault\`). Files there are read-only until checked out; LSE_Env refuses to write read-only files and lists touched files to check in. |
 | Change kind | `SetProperty`, `SetOption`, `SetWdm`, `CopyFile`, `WireNumbers`, `UnfixWireNumbers`, `Marker`, or `Info` (a note, never applied). |
 | Marker | `<project>.lseenv.json`: the record of the profile and scheme last applied, with every line LSE_Env has changed in that project. |
 | Snapshot / diff | `LSEENVSNAPSHOT`'s copy of every `.wdp` line and `WD_M` value, and the comparison of two such copies that locates a setting. |

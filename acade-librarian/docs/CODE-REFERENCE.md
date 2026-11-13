@@ -1,10 +1,10 @@
 # Code reference: LSE Librarian
 
-Maintained by DCW. Last reviewed 2026-11-12.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 Every file, type and public member of `LSE.AutoCADElectrical.Librarian`. Private helpers are summarised. Read [ARCHITECTURE.md](ARCHITECTURE.md) first for how the pieces fit.
 
-Density: `Models.cs`, `SettingsService.cs`, `AccessCatalogService.cs`, `NamingService.cs`, `NamingWorkbookService.cs`, `PartNumberService.cs`, `IconMenuService.cs`, `LibraryTransactionService.cs`, `CatalogTransactionService.cs`, `LibraryAuditService.cs`, `DiagnosticsService.cs`, `LibrarySettingsForm.cs` and `Plugin.cs` are compact (one member per line). `DrawingInspectionService.cs`, `IconRenderService.cs`, `LibrarianForm.cs`, `CatalogRecordForm.cs` and `AuditForm.cs` are expanded. Eighteen source files in all.
+Density: `Models.cs`, `SettingsService.cs`, `AccessCatalogService.cs`, `NamingService.cs`, `NamingWorkbookService.cs`, `PartNumberService.cs`, `IconMenuService.cs`, `LibraryTransactionService.cs`, `CatalogTransactionService.cs`, `FootprintMappingService.cs`, `LibraryAuditService.cs`, `DiagnosticsService.cs`, `VaultProbe.cs`, `LibrarySettingsForm.cs` and `Plugin.cs` are compact (one member per line). `DrawingInspectionService.cs`, `IconRenderService.cs`, `LibrarianForm.cs`, `CatalogRecordForm.cs`, `FootprintMapForm.cs` and `AuditForm.cs` are expanded. Twenty-one source files in all (corrected 2026-11-13 from eighteen; `FootprintMappingService.cs`, `FootprintMapForm.cs` and `VaultProbe.cs` were added on 2026-11-12).
 
 ## src/Models.cs
 
@@ -157,7 +157,7 @@ Pure logic over a `NamingFormat` and lists of existing numbers. Part number = `[
 
 The only writer of `default_cat.mdb` in this plugin. Step by step in [ARCHITECTURE.md](ARCHITECTURE.md) section 5.1.
 
-Symbol link (2026-11-12): `string ResolveSymbol(AppSettings, LibraryStandard, string name)` validates the block name (no folders or .dwg, 60 characters) and finds `<name>.dwg` under `SymbolLibraryFolder` then `StockSymbolLibraryFolder`, returning the library spelling; `SymbolLinkResult SetSymbols(AppSettings, LibraryStandard, IReadOnlyList<SymbolLinkRequest>, Action<string>? progress)` updates only WDBLKNAM (one row per request, all or nothing). Uses `CatalogService.ReadSymbols`, `FindSymbolRows`, `SetSymbol`.
+Symbol link (2026-11-12): `string ResolveSymbol(AppSettings, LibraryStandard, string name)` validates the block name (no folders or .dwg, 60 characters) and finds `<name>.dwg` under `SymbolLibraryFolder` then `StockSymbolLibraryFolder`, returning the library spelling; `SymbolLinkResult SetSymbols(AppSettings, LibraryStandard, IReadOnlyList<SymbolLinkRequest>, Action<string>? progress)` updates only WDBLKNAM (one row per request, all or nothing). Order in `SetSymbols`: resolve every symbol, plan (refuses a row that does not match exactly once, or has a different non-empty WDBLKNAM without `Overwrite`); return without writing when every row already has the symbol; `VaultProbe.RequireWritable(catalog)`; backup into `<BackupRoot>\<stamp>_symbollink\`; `IssuanceLock`; re-plan; `SetSymbol` per row; read back; `Status: SUCCESS` then the check-in reminder; `SymbolLinkReport.txt`. Any exception restores the catalog from the backup. Uses `CatalogService.ReadSymbols`, `FindSymbolRows`, `SetSymbol`.
 
 | Member | Behaviour |
 |---|---|
@@ -166,8 +166,8 @@ Symbol link (2026-11-12): `string ResolveSymbol(AppSettings, LibraryStandard, st
 | `void Validate(AppSettings, NamingStandard, PartNumberRequest, CatalogAddRequest)` | Catalog path set and exists, part column valid, tab exists, `PartNumberService.Validate`, type code defined on the tab, family table chosen and valid, MANUFACTURER and CATALOG present (24, 60), description problems other than the 100-character warning, TYPE/RATING/VOLTAGE/USER2/USER3 at most 100, TEXTVALUE and WEBLINK 255, WDBLKNAM 60, WEBLINK starting with `http://` or `https://`. |
 | `PartNumberPreview Preview(AppSettings, NamingStandard, PartNumberRequest)` | Read-only: existing values of the part column with the prefix from every table, plus the tab's `KnownPartNumbers`, through `PartNumberService.Preview`. |
 | `List<(Table, Count)> FamilyUsage(AppSettings, NamingStandard, string category)` | Family tables holding standard-form numbers with that category code, most used first. Drives the family hint in the dialog. |
-| `CatalogAddResult Execute(AppSettings, NamingStandard, PartNumberRequest, CatalogAddRequest, Action<string>? progress)` | Stand-alone run: `Validate`, header lines (started, catalog, naming source, record, prefix and tab), `Run`, `Status: SUCCESS`, `CatalogReport.txt` into the backup folder, `Report` = the log. |
-| `CatalogAddResult Run(AppSettings, NamingStandard, PartNumberRequest, CatalogAddRequest, Action<string> log)` | The core, also called by `LibraryTransactionService`: `Validate`; create `<BackupRoot>\<yyyyMMdd_HHmmss>\` (suffix `_n` if taken); `IssuanceLock.Acquire`; copy the catalog into the backup; read existing numbers; `PartNumberService.Preview`; refuse an existing part number (`FindByColumn`) or an existing MANUFACTURER + CATALOG (`Exists`); set `User1`, `AddRecord`; read back both ways; log `Catalog insert into <table> (<column>=<number>, <mfg> <catalog>): PASS`. On any exception: log `ERROR:`, copy the backup over the catalog (`Catalog rollback: PASS`, or `PASS (nothing had been written)`, or `FAILED ...`), write `CatalogReport.txt` with the error, rethrow. |
+| `CatalogAddResult Execute(AppSettings, NamingStandard, PartNumberRequest, CatalogAddRequest, Action<string>? progress)` | Stand-alone run: `Validate`, header lines (started, catalog, naming source, record, prefix and tab), `Run`, `Status: SUCCESS`, the `VaultProbe.CheckinReminder` lines for the catalog, `CatalogReport.txt` into the backup folder, `Report` = the log. |
+| `CatalogAddResult Run(AppSettings, NamingStandard, PartNumberRequest, CatalogAddRequest, Action<string> log)` | The core, also called by `LibraryTransactionService`: `Validate`; `VaultProbe.RequireWritable(catalog)` (a read-only catalog is refused before any backup or lock); create `<BackupRoot>\<yyyyMMdd_HHmmss>\` (suffix `_n` if taken); `IssuanceLock.Acquire`; copy the catalog into the backup; read existing numbers; `PartNumberService.Preview`; refuse an existing part number (`FindByColumn`) or an existing MANUFACTURER + CATALOG (`Exists`); set `User1`, `AddRecord`; read back both ways; log `Catalog insert into <table> (<column>=<number>, <mfg> <catalog>): PASS`. On any exception: log `ERROR:`, copy the backup over the catalog (`Catalog rollback: PASS`, or `PASS (nothing had been written)`, or `FAILED ...`), write `CatalogReport.txt` with the error, rethrow. |
 
 ## src/CatalogRecordForm.cs
 
@@ -191,7 +191,7 @@ Constructor `CatalogRecordForm(AppSettings settings, bool embedded, CatalogAddRe
 | Description builder | One upper-cased box per `DescriptionField` (label `Name (Format)`, placeholder `e.g. <Example>`, tooltip `Allowed: <AllowedValues>`); **Build description** joins the non-empty boxes with `, ` into DESCRIPTION. A tab without fields shows a note. |
 | USER2 = purchase description | Check box (default `PurchaseDescriptionInUser2`); when ticked USER2 is read-only and follows `PurchaseDescription(DESCRIPTION, CATALOG)` cut to 100; a prefilled `User2` unticks it. |
 | TYPE, RATING, VOLTAGE, USER3 (100), TEXTVALUE, WEBLINK (255), WDBLKNAM (60) | Plain text boxes. |
-| Also map this part to a footprint drawing (stand-alone only) | Check box enabling a path box and **Browse...** (starts in the footprint library). On **Add to catalog** the footprint is validated and any different existing lookup row is asked about before the catalog is touched; after the catalog insert succeeds `FootprintMappingService.Execute` runs as a second, separate transaction. A mapping failure restores the lookup MDB, keeps the catalog row and says so. Not shown embedded. |
+| Also map this part to a footprint drawing (stand-alone only) | Check box enabling a path box and **Browse...** (starts in the footprint library). On **Add to catalog** the footprint is validated and any different existing lookup row is asked about before the catalog is touched; after the catalog insert succeeds `FootprintMappingService.Execute` runs as a second, separate transaction. A mapping failure restores the lookup MDB, keeps the catalog row and says so. Not shown embedded. Gap: the read-only (Vault) check of `footprint_lookup.mdb` runs only inside `FootprintMappingService.Execute`, after the catalog row is written, so a lookup that is not checked out gives a catalog row without its mapping (see Known Gaps in the developer guide). |
 | Tab rules and examples | Read-only box: title, part number rule, purchase description pattern, the numbered rules, the examples (`number  description`), and the counts of listed numbers, type codes and manufacturer codes on the tab. |
 | Run log / Notes | Read-only log (stand-alone it receives the transaction log). |
 
@@ -210,7 +210,7 @@ Maps catalog parts (MANUFACTURER + CATALOG) to footprint DWGs in `footprint_look
 | `List<FootprintMapRow> Load(AppSettings)` | Needs the catalog and lookup MDBs. `CatalogService.ReadParts(PartColumn)` joined to `FootprintLookupService.ReadMappings`; sorted by manufacturer then catalog. Used by `FootprintMapForm` and the audit. |
 | `string Existing(settings, manufacturer, catalog)` | Current BLKNAM of the plain row, or "". |
 | `string Validate(AppSettings, FootprintMapRequest)` | Throws unless: both MDBs exist; icon menu folder exists (lock lives there); backup folder set; MANUFACTURER 1..24 and a valid table name; CATALOG 1..60; the footprint is a full-path-able `.dwg` that exists inside the footprint or stock footprint library and fits 255 characters. Returns the full path to store. |
-| `FootprintMapResult Execute(AppSettings, FootprintMapRequest or IReadOnlyList<FootprintMapRequest>, Action<string>? progress)` | Validate all; refuse a part listed twice; read-only plan (same path = no-op, different path without `Overwrite` = refuse); if nothing to write return; create `<BackupFolder><stamp>_footprintmap`; `LibraryLock.Acquire(IconMenuFolder)`; copy the MDB; re-plan under the lock; `EnsureTable`, `SetMapping` per item; read each back with `FindPlain`; write `FootprintMapReport.txt`. Any exception restores the MDB from the backup, logs `ERROR:` and the rollback, writes the report and rethrows. Never writes `default_cat.mdb`, a drawing or a menu. |
+| `FootprintMapResult Execute(AppSettings, FootprintMapRequest or IReadOnlyList<FootprintMapRequest>, Action<string>? progress)` | Validate all; refuse a part listed twice; read-only plan (same path = no-op, different path without `Overwrite` = refuse); if nothing to write return; `VaultProbe.RequireWritable(footprint lookup)`; create `<BackupFolder>\<stamp>_footprintmap`; `LibraryLock.Acquire(IconMenuFolder)`; copy the MDB; re-plan under the lock; `EnsureTable`, `SetMapping` per item; read each back with `FindPlain`; `Status: SUCCESS` and the check-in reminder; write `FootprintMapReport.txt`. Any exception restores the MDB from the backup, logs `ERROR:` and the rollback, writes the report and rethrows. Never writes `default_cat.mdb`, a drawing or a menu. |
 
 ## src/FootprintMapForm.cs
 
@@ -293,7 +293,7 @@ Not verified: parameter sampling on every curve type AutoCAD Electrical symbols 
 
 | Member | Behaviour |
 |---|---|
-| `LibraryResult Execute(AppSettings, LibraryStandard, LibraryRequest, Action<string>? progress = null)` | The transaction in [ARCHITECTURE.md](ARCHITECTURE.md) section 5. Every log line goes to `progress`. When `AddCatalogRecord` is set, after the footprint lookup step it loads the naming standard, logs `Catalog record: <summary> (naming standard from workbook|JSON snapshot <source>)`, calls `CatalogTransactionService.Run` with the same log, sets `LibraryResult.PartNumber` and logs `Catalog record added with LSE part number <n> (catalog backup in <folder>)`. On failure rolls back and throws `InvalidOperationException` whose message is the whole log. |
+| `LibraryResult Execute(AppSettings, LibraryStandard, LibraryRequest, Action<string>? progress = null)` | The transaction in [ARCHITECTURE.md](ARCHITECTURE.md) section 5. Every log line goes to `progress`. Right after `Validate` it calls `VaultProbe.RequireWritable` on the icon menu, plus `footprint_lookup.mdb` when `RegisterLookup`, `default_cat.mdb` when `AddCatalogRecord`, and the target drawing when `InPlace`; a read-only file stops the run before the backup folder, lock or any write. After `Status: SUCCESS` it appends `VaultProbe.CheckinReminder` for what the run actually touched (menu, new or in-place drawing, new icon image, lookup, catalog) before writing `LibraryReport.txt`. When `AddCatalogRecord` is set, after the footprint lookup step it loads the naming standard, logs `Catalog record: <summary> (naming standard from workbook|JSON snapshot <source>)`, calls `CatalogTransactionService.Run` with the same log, sets `LibraryResult.PartNumber` and logs `Catalog record added with LSE part number <n> (catalog backup in <folder>)`. On failure rolls back and throws `InvalidOperationException` whose message is the whole log. |
 | `void Validate(AppSettings, LibraryStandard, LibraryRequest)` | All pre-checks; see section 5 step 1. With `AddCatalogRecord`: refuses user circuits, requires both `PartNumber` and `CatalogRecord`, and runs `CatalogTransactionService.Validate` against `NamingWorkbookService.Load(settings)`. Public so the wizard can run it per step. |
 | `bool SameFolder(a, b)` | Full-path, case-insensitive equality. |
 | `string? FindByName(root, fileName, LibraryStandard)` | First drawing with that file name under the root (ignored folders skipped), or null. |
@@ -320,7 +320,7 @@ Finding texts are listed in [OPERATIONS.md](OPERATIONS.md) section 5.
 
 ## src/DiagnosticsService.cs
 
-`string BuildReport()`: runtime, assembly, settings path, backup folder, reference project, every folder and file with `(exists)`/`(MISSING)` (now including "Parts catalog workbook" and "Naming standard JSON snapshot"), JSON load summary, both menus parsed (pages, entries, encoding, line ending, next page number, LSE root pages present per kind), image counts, lookup table count, `Naming standard from workbook: PASS (...)` or `Naming standard from JSON snapshot: PASS (...)` with `NamingWorkbookService.Describe` (or `Naming standard: FAIL`), `Catalog read: PASS (n family tables, part number column X, backups in ...)` when the catalog exists, `Part number issuance lock file present: ...` when `LSE_PartNumber.lock` exists next to the catalog, library lock file presence, recent item count.
+`string BuildReport()`: the fixed first line `LSE Librarian V1`, runtime, assembly, settings path, backup folder, reference project, every folder and file with `(exists)`/`(MISSING)` (now including "Parts catalog workbook" and "Naming standard JSON snapshot"); the four write targets (schematic icon menu, panel icon menu, footprint lookup, catalog) also carry `(writable)` or `(read-only: not checked out in Vault)` (private `KeyLine`), followed by the three `VaultProbe.Report("")` lines (host runtime, Vault client, Vault add-in session); JSON load summary, both menus parsed (pages, entries, encoding, line ending, next page number, LSE root pages present per kind), image counts, lookup table count, `Naming standard from workbook: PASS (...)` or `Naming standard from JSON snapshot: PASS (...)` with `NamingWorkbookService.Describe` (or `Naming standard: FAIL`), `Catalog read: PASS (n family tables, part number column X, backups in ...)` when the catalog exists, `Part number issuance lock file present: ...` when `LSE_PartNumber.lock` exists next to the catalog, library lock file presence, recent item count.
 
 ## src/LibrarySettingsForm.cs
 
@@ -361,9 +361,9 @@ Empty `Initialize` and `Terminate`.
 
 | Command | Flags | Body |
 |---|---|---|
-| `LSELIBRARIAN` | `Modal` | `LibrarianForm(null)` shown with `ShowModalDialog`. This is the catalog-only path: `CatalogTransactionService.Execute` touches only `default_cat.mdb`, its backup folder and `CatalogReport.txt`. The dialog shows a "Catalog record only" banner when not embedded. |
+| `LSELIBRARIAN` | `Modal` | `LibrarianForm(null)` shown with `ShowModalDialog`. |
 | `LSELIBRARYAUDIT` | `Modal` | `AuditForm`; afterwards opens `LibrarianForm(path)` when a drawing was picked. |
-| `LSECATALOGADD` | `Modal` | `CatalogRecordForm(SettingsService.Load(), embedded: false, null, null)` shown with `ShowModalDialog`. |
+| `LSECATALOGADD` | `Modal` | `CatalogRecordForm(SettingsService.Load(), embedded: false, null, null)` shown with `ShowModalDialog`. This is the catalog-only path: `CatalogTransactionService.Execute` touches only `default_cat.mdb`, its backup folder and `CatalogReport.txt` (plus the optional footprint mapping). The dialog title is "LSE Librarian: add a catalog record (catalog only, no symbol or footprint)" and a "Catalog record only: ..." banner sits at the top. |
 | `LSEFOOTPRINTMAP` | `Modal` | `FootprintMapForm(SettingsService.Load())` shown with `ShowModalDialog`. |
 | `LSELIBRARYSETTINGS` | `Modal` | `LibrarySettingsForm`. |
 | `LSELIBRARYDIAG` | `Modal` | `MessageBox` with `DiagnosticsService.BuildReport()`. |
@@ -384,4 +384,33 @@ Unchanged target and reference arrangement (`net8.0-windows`, x64, WinForms, Aut
 
 ## bundle/LSE.Librarian.bundle/PackageContents.xml
 
-Autoloader manifest: `LoadOnCommandInvocation="True"`, the commands (`LSELIBRARIAN`, `LSELIBRARYAUDIT`, `LSECATALOGADD`, `LSELIBRARYSETTINGS`, `LSELIBRARYDIAG`, and since 2026-11-12 `LSEFOOTPRINTMAP` in code, which the manifest in `bundle` does not list yet; `LSECATALOGADD` added 2026-11-10), `SeriesMin="R25.1" SeriesMax="R25.1"` (AutoCAD 2026). Product and upgrade GUIDs are unique to this plugin. `LSECATALOGADD` is not yet listed, so with the bundle the DLL is loaded on the first of the four listed commands and `LSECATALOGADD` works afterwards (or after `NETLOAD`); add a `<Command>` line for it when the manifest is next edited.
+Autoloader manifest: `Name="LSE Librarian"`, `AppVersion="1.0.0"`, `LoadOnCommandInvocation="True"`, `LoadOnAutoCADStartup="False"`, module `./Contents/LSE.AutoCADElectrical.Librarian.dll`, `SeriesMin="R25.1" SeriesMax="R25.1"` (AutoCAD 2026), command group `LSELIBRARIAN` listing all six commands: `LSELIBRARIAN`, `LSELIBRARYAUDIT`, `LSECATALOGADD`, `LSEFOOTPRINTMAP`, `LSELIBRARYSETTINGS`, `LSELIBRARYDIAG`. Every command in `src/Plugin.cs` is listed, so any of them loads the DLL on first use. Product and upgrade GUIDs are unique to this plugin. (Corrected 2026-11-13: earlier text said `LSECATALOGADD` and `LSEFOOTPRINTMAP` were missing from the manifest; both are listed.)
+
+`AppVersion` has stayed `1.0.0` through every release cut; the cut name (for example `2026-11-12-r7`) is the only version marker, and the Librarian has no build tag in its window titles or diagnostics (the first diagnostics line is the fixed text `LSE Librarian V1`).
+
+## src/VaultProbe.cs
+
+### `static class VaultProbe`
+
+Vault awareness shared by every LSE plugin; the same file is copied into each plugin folder and must be kept in step. Nothing from the Vault SDK is referenced at compile time; the probe only looks at assemblies the host has already loaded and at the Vault client folder on disk. The Librarian uses it for two things only: the read-only guard before a write and the check-in reminder after one. It never checks files in or out.
+
+| Member | Behaviour |
+|---|---|
+| `const VaultBaseAssembly`, `WebServicesAssembly`, `DefaultWorkingFolder` | `Connectivity.Application.VaultBase`, `Autodesk.Connectivity.WebServices`, `C:\_Lake_Shore_E_Vault`. |
+| `int RuntimeMajor`, `string RuntimeLine()` | Host .NET major version; `Host: <process> on <framework> (.NET <n>)`. |
+| `Assembly? Loaded(name)` | An assembly already loaded in the AppDomain, by simple name. |
+| `object? AddinConnection()` | The Vault add-in's connection (`ConnectionManager.Instance.Connection` in `VaultBase`) by reflection, or null. Never throws. |
+| `string Describe(conn)`, `string Str(o, member)` | `<user> in vault <vault> on <server>` from the connection's properties. |
+| `string AddinLine()` | `Vault add-in: logged in as ...`, `... loaded but not logged in (log in on the Vault tab)`, or `... not loaded in this session (...)`. |
+| `string DiscoverExplorerFolder(configured)` | The configured folder if it exists, else the newest `Program Files\Autodesk\Vault*\Explorer` that holds `Autodesk.Connectivity.WebServices.dll` (year parsed from the folder name). |
+| `string? TargetFrameworkOf(path)`, `int TargetMajor(tfm)`, `string FileVersion(path)` | Reads the `TargetFrameworkAttribute` from the DLL metadata without loading it; `-1` = .NET Framework, `0` = unknown. |
+| `string? RuntimeMismatch(explorerFolder)` | Null when the Vault client can run in this process; otherwise the reason (.NET Framework build, or built for a newer .NET than the host, with the advice to install the matching Autodesk 2026 updates together). |
+| `string ClientLine(configured)`, `string Report(configured)` | The three diagnostics lines: host runtime, Vault client (folder, file version, framework, compatible or `NOT LOADABLE HERE`), add-in session. The Librarian always passes `""` (it has no Vault folder setting), so the client is discovered from Program Files. |
+| `bool IsReadOnly(path)` | The file exists and has the read-only attribute. |
+| `bool InVaultWorkingFolder(path)` | The full path contains `\_Lake_Shore_E_Vault\` or starts with `C:\_Lake_Shore_E_Vault\`. |
+| `void RequireWritable(files, what = "Nothing was changed.")` | Throws `InvalidOperationException` when any listed file is read-only: `This file is read-only: <path>. ` (or `These files are read-only: ...`), then either `They are in the Vault working folder: check them out in Vault first (the Vault tab in AutoCAD / Inventor, or Vault Explorer > Check Out), then run this again. ` or `If they are under Vault control check them out first; otherwise clear the read-only attribute. `, then `Nothing was changed.` Missing files and blanks are ignored. |
+| `IEnumerable<string> CheckinReminder(touched)` | For touched files or folders that exist inside the Vault working folder: `Vault: these <n> item(s) are in the Vault working folder and are not checked in yet. Check them in (new files: Add to Vault) from the Vault tab or Vault Explorer so other workstations get them:` followed by one indented path per line. Nothing when none qualify. |
+
+Callers in this plugin: `LibraryTransactionService.Execute`, `CatalogTransactionService.Execute`, `Run` and `SetSymbols`, `FootprintMappingService.Execute` (guard and reminder), `DiagnosticsService.BuildReport` (`Report`, `IsReadOnly`).
+
+Not verified on a workstation: that the read-only attribute reflects Vault check-out state on the LSE working folder, and the reflection path to the add-in connection.

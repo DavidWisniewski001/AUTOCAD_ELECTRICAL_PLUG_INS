@@ -1,6 +1,6 @@
 # Architecture: LSE_Doctor (AutoCAD Electrical 2026 plugin)
 
-Maintained by DCW. Last reviewed 2026-11-10.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 LSE_Doctor is a .NET 8 plugin that runs inside AutoCAD Electrical 2026. It compares an existing project with the LSE custom project template, lists every difference as a finding, and repairs the ticked ones inside a transaction that backs up first, verifies afterwards and rolls back on failure. It exists because projects drift from the LSE standard (copied from old jobs, created by hand, edited in the Project Manager) and nobody can see the drift without opening the text files by hand. It is the repair-shop counterpart of `../../acade-project-creator`, which creates new projects.
 
@@ -20,15 +20,18 @@ The LSE standard for all of this lives in one real project, the LSE custom proje
 
 ## 2. Components
 
-One assembly, `LSE_Doctor.dll`, one namespace `LSE.AutoCADElectrical.ProjectDoctor`, loaded with `NETLOAD` or a `.bundle`. Fifteen source files. The source folder is still named `acade-project-doctor` and the namespace still says `ProjectDoctor`; only the product name, assembly, project file, bundle folder and settings folder say `LSE_Doctor`.
+One assembly, `LSE_Doctor.dll`, one namespace `LSE.AutoCADElectrical.ProjectDoctor`, loaded with `NETLOAD` or a `.bundle`. Nineteen source files. The source folder is still named `acade-project-doctor` and the namespace still says `ProjectDoctor`; only the product name, assembly, project file, bundle folder and settings folder say `LSE_Doctor`.
 
 | Layer | File | Responsibility |
 |---|---|---|
-| Host integration | `src/Plugin.cs` | `Plugin` (empty `IExtensionApplication`) and `Commands` with the four `LSEDOCTOR...` command methods. After a dialog closes, sends the reload LISP. |
+| Host integration | `src/Plugin.cs` | `Plugin` (empty `IExtensionApplication`) and `Commands` with the five `LSEDOCTOR...` command methods (`LSEDOCTORHELP` since r7). After a dialog closes, sends the reload LISP. |
 | User interface | `src/DoctorForm.cs` | Single-project screen: pick a project, examine, review the findings grid, tick repairs, repair. |
 | User interface | `src/ScanForm.cs` | Folder scan: find every `.wdp` under a root, examine each, batch-apply recommended repairs, open one in the doctor form. |
 | User interface | `src/DoctorSettingsForm.cs` | Edits `AppSettings`; opens diagnostics. |
-| User interface | `src/TextReportForm.cs` | Read-only text viewer with Save as, Copy and Close. |
+| User interface | `src/TextReportForm.cs` | Read-only text viewer with Save as, Copy and Close; wraps for help texts. |
+| User interface | `src/GridService.cs` | The findings grid and the scan grid: columns, fill, tick toggling, note rows and their painting. No AutoCAD types, so the smoke test runs it on a real `DataGridView`. |
+| User interface | `src/HelpText.cs` | The plain-language guides behind every Help button and `LSEDOCTORHELP`. |
+| User interface | `src/BuildInfo.cs` | The release tag shown in every title bar and in diagnostics. |
 | Orchestration | `src/DiagnosisService.cs` | `DiagnosisService.Examine`: compares a project with the standard and produces `Finding` objects. Also renders the text report. |
 | Orchestration | `src/RepairService.cs` | `RepairService.Execute`: the one mutating run (backup, edit, verify, report, prune, rollback). Also `ProjectConfigurationService`, which writes a minimal `.aepx`. |
 | Standard | `src/StandardService.cs` | Loads the template (or the bundled copy) into a `ProjectStandard`. Builds finding labels. |
@@ -38,6 +41,7 @@ One assembly, `LSE_Doctor.dll`, one namespace `LSE.AutoCADElectrical.ProjectDoct
 | AutoCAD Electrical bridge | `src/AcadeBridgeService.cs` | Asks the host for the active project; sends the reload LISP. |
 | Configuration | `src/SettingsService.cs` | `SettingsService` (per-user `settings.json`, bundled standard lookup) and `RulesService` (rules JSON). |
 | Diagnostics | `src/DiagnosticsService.cs` | Builds the `LSEDOCTORDIAG` report. |
+| Vault awareness | `src/VaultProbe.cs` | Shared by every LSE plugin (identical copy in each folder). No Vault SDK reference. Refuses a repair before any write when a file it would touch is read-only (`RequireWritable`), lists touched files in the Vault working folder that need checking in (`CheckinReminder`), and reports the host .NET, the installed Vault client and the Vault add-in login for diagnostics. The doctor never checks files in or out. |
 | Data shapes | `src/Models.cs` | Settings, rules, text document, standard, finding, diagnosis, results, drawing inspection, layer info, drawing repair request. |
 
 Supporting files:
@@ -56,9 +60,9 @@ Supporting files:
         |  NETLOAD / bundle, command line
         v
  Plugin.cs  Commands
-   LSEDOCTOR  LSEDOCTORSCAN  LSEDOCTORSETTINGS  LSEDOCTORDIAG
-        |            |               |                |
-        |            |               |                +--> DiagnosticsService --> TextReportForm
+   LSEDOCTOR  LSEDOCTORSCAN  LSEDOCTORSETTINGS  LSEDOCTORDIAG  LSEDOCTORHELP
+        |            |               |                |              +--> HelpText.All --> TextReportForm
+        |            |               |                +--> DiagnosticsService (+ VaultProbe.Report) --> TextReportForm
         |            |               +--> DoctorSettingsForm --> SettingsService
         v            v
    DoctorForm <--- ScanForm  ("Open in Doctor")
@@ -77,7 +81,8 @@ Supporting files:
               |                    WireLayerService (pure comparison of
               |                      WD_M values and layer tables)
               |
-        RepairService.Execute -- backup --> <project>\_LSE_DOCTOR_BACKUP\<stamp>\
+        RepairService.Execute -- VaultProbe.RequireWritable (refuse if read-only)
+              |-- backup --> <project>\_LSE_DOCTOR_BACKUP\<stamp>\
               |  edits .wdp .wdt .wdl, creates .wdt/.wdl/.aepx
               |  DrawingInspectionService.Repair, one DrawingRepairRequest per DWG
               |    (side Database, one transaction, one SaveAs)
@@ -113,14 +118,14 @@ Only `Plugin.cs`, `AcadeBridgeService.cs` and `DrawingInspectionService.cs` refe
 | 1 | Select | Findings with `Selected` true and an action other than `None`. If none, throw "Nothing is ticked." |
 | 2 | Check project file | `FileNotFoundException` if the `.wdp` is gone. |
 | 3 | Work out touched files | The `.wdp` if any `wdp` finding is ticked; the `.wdt` or `.wdl` if edits (not file creation) are ticked; every drawing that has a ticked drawing action (`Finding.IsDrawingAction`: `InsertWdm`, `SetAttribute`, `CreateLayer`, `RepairLayer`, `PurgeLayer`). |
-| 4 | Read-only check | Any touched file that exists and is read-only stops the run with a Vault hint. Nothing has been changed or backed up yet. |
+| 4 | Read-only check | `VaultProbe.RequireWritable`: every touched file that exists and is read-only is listed in one `InvalidOperationException` ("This file is read-only: ..." or "These files are read-only: ...", a check-out hint when the path is in the Vault working folder, then "Nothing was changed."). Nothing has been changed or backed up yet. |
 | 5 | Back up | Create `<project folder>\<BackupFolderName>\<yyyyMMdd_HHmmss>\` and copy each touched file into it by file name. Backup copies get the Normal attribute. |
 | 6 | Edit `.wdp` | Re-read the file, apply `Add`, `Replace` and `RemoveDrawing` findings in the order they appear in the findings list, write once if anything changed. |
 | 7 | Edit or create `.wdt` and `.wdl` | `CreateFile` copies the standard's file. Edits go through `SetMapping` and `SetLabel`. Written once per file. |
 | 8 | Create `.aepx` | Only if ticked and the file does not already exist. |
 | 9 | Repair drawings | Ticked drawing actions are grouped by drawing path into one `DrawingRepairRequest` per DWG. `DrawingInspectionService.Repair` opens the DWG as a side database once, applies the steps in the fixed order insert `WD_M`, create layers, repair layers, set attributes, purge layers inside one transaction, commits, then `SaveAs(path, DwgVersion.Current)`. The log gets `Repairing drawing <file> (n repair(s))` and one indented line per step. A step that throws (for example a layer that `Database.Purge` says is still referenced) aborts that drawing's transaction before the save and fails the whole run (step 4.3). |
 | 10 | Verify | `DiagnosisService.Examine` again with drawing checks off. A text-file finding is Unresolved if the same Key and action still appears. Each repaired drawing is inspected once more and every drawing finding is checked with `WireLayerService.Resolved` (the `WD_M` exists, the attribute has the template value, the layer exists and matches the template layer, or the purged layer is gone). |
-| 11 | Report | Log ends `Status: SUCCESS` or `Status: PARTIAL`. The log is appended to `<project folder>\LSE_DoctorReport.txt`. |
+| 11 | Report | Log line `Status: SUCCESS` or `Status: PARTIAL`, then the `VaultProbe.CheckinReminder` lines (touched and created files inside the Vault working folder that need checking in; none when nothing is in the working folder). The log is appended to `<project folder>\LSE_DoctorReport.txt`. |
 | 12 | Prune | Keep the newest `BackupsToKeep` backup folders (sorted by folder name, descending), delete the rest. Remember the project in `RecentProjects`. |
 
 ### 4.3 Rollback
@@ -133,7 +138,7 @@ Any exception inside the try block does this, in order:
 4. Write the whole log plus `Detail: <exception>` to `%APPDATA%\LSE\LSE_Doctor\Logs\DoctorRepair_<yyyyMMdd_HHmmss>.txt`.
 5. Throw `InvalidOperationException` whose message is the log. The form shows it in a text window.
 
-The backup folder itself is left in place after a rollback. The "Nothing is ticked" and read-only checks (steps 1 to 4) throw before the try block, so they do not roll back and do not write a log file; nothing has changed at that point. The screens still word this as a rollback; see Known Gaps in the [developer guide](DEVELOPER-GUIDE.md).
+The backup folder itself is left in place after a rollback. The "Nothing is ticked" and read-only checks (steps 1 to 4) throw before the try block, so they do not roll back and do not write a log file; nothing has changed at that point. `DoctorForm` recognises these by the text "Nothing was changed" or "Nothing is ticked" in the message and titles the window "LSE_Doctor - repair refused"; the `ScanForm` batch report still heads them `FAILED (rolled back)` (Known Gaps in the [developer guide](DEVELOPER-GUIDE.md#9-known-gaps)).
 
 After a successful repair of the active project, the form records the project path. When the dialog closes, `Commands` calls `AcadeBridgeService.ReloadProject`, which queues the reload LISP with `SendStringToExecute`.
 
@@ -146,6 +151,7 @@ After a successful repair of the active project, the form records the project pa
 - DWG files are never opened as documents. They are read into a `Database` object with `ReadDwgFile`. A drawing that is open in the editor is not inspected or modified. The same applies to the template drawing: if it is open, the wire-layer check is skipped for the whole examine.
 - During a drawing repair the template drawing is open as a second side database for the whole of that drawing's transaction, and `HostApplicationServices.WorkingDatabase` is switched to the drawing being repaired and restored in `finally`.
 - Settings are loaded when a form is constructed. A change saved in the settings dialog takes effect the next time a form opens.
+- The grids do not use the `DataGridView` edit cycle. The Fix column is read-only; the forms toggle the underlying `Finding.Selected` (or the scan row's cell value) from `CellClick` on column 0 and from the space bar, through `GridService`. Rows with nothing to repair are painted with a word (`note`, `ok`, `review`, `error`) instead of a box.
 
 ## 6. Units, coordinates and encodings
 

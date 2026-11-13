@@ -1,8 +1,8 @@
 # Data stores: LSE_Doctor
 
-Maintained by DCW. Last reviewed 2026-11-10.
+Maintained by DCW. Last reviewed 2026-11-13.
 
-Every file, folder, setting and generated artefact the doctor reads or writes: where it is, its format, who owns it, and what breaks if it is wrong. The doctor has no database, no registry keys and no lock files. It uses plain files and one AutoCAD system variable.
+Every file, folder, setting and generated artefact the doctor reads or writes: where it is, its format, who owns it, and what breaks if it is wrong. The doctor has no database, no registry keys and no lock files. It uses plain files and one AutoCAD system variable. It does not talk to the Vault server; it only reads the read-only attribute that the Vault client sets on files that are not checked out (section 9).
 
 Related documents: [ARCHITECTURE.md](ARCHITECTURE.md), [CODE-REFERENCE.md](CODE-REFERENCE.md), [OPERATIONS.md](OPERATIONS.md).
 
@@ -38,7 +38,7 @@ Related documents: [ARCHITECTURE.md](ARCHITECTURE.md), [CODE-REFERENCE.md](CODE-
 | `ProjectsRootFolder` | string | `C:\_Lake_Shore_E_Vault\Engineering\Custom Sales Order` | Default folder for Browse and for the scan. Saved by every scan. |
 | `CheckDrawings` | bool | true | Initial state of "Check every drawing" in `LSEDOCTOR`. |
 | `InsertMissingWdm` | bool | true | A missing `WD_M` is a recommended repair (needs a template drawing). |
-| `ScanChecksDrawings` | bool | false | Initial state of the scan's drawing check. Saved by every scan. |
+| `ScanChecksDrawings` | bool | false | Initial state of the scan's drawing check. Saved by every scan, so the last scan's choice overwrites what was set in `LSEDOCTORSETTINGS`. (The `LSEDOCTOR` check box, by contrast, is never written back to `CheckDrawings`.) |
 | `ReactivateAfterRepair` | bool | true | Send the reload LISP after the active project is repaired. |
 | `ShowReportAfterRepair` | bool | true | Show the repair log window after each repair in `LSEDOCTOR`. |
 | `BackupFolderName` | string | `_LSE_DOCTOR_BACKUP` | Folder created inside each project folder. Blank on load becomes the default. |
@@ -123,7 +123,7 @@ Fourteen lines `LINE1=PROJECT NAME`, `LINE2=QUOTE#`, `LINE3=CUSTOMER 1`, `LINE4=
 
 ### Real template folder
 
-`CUSTOM PROJECT TEMPLATE 2.0\CUSTOM PROJECT TEMPLATE 2.0\` in this workspace holds the real files: `DRAWING-#.dwg`, `E-CAD CUSTOM PROJECT TEMPLATE 2.aepx`, `.wdp`, `.wdt`, `_wdtitle.wdl`, `STOCKCODE-E001.dwg` and a `_V` folder (Vault version files). The doctor does not compare the bundled copy with the real files at build or run time; refresh `config\standard\` by hand when the template changes (see the [developer guide](DEVELOPER-GUIDE.md)). Drawings are never bundled, so `WD_M` insertion and the whole wire-layer check need the Vault folder. The wire layers of `DRAWING-#.dwg` (names, colours, linetypes, lineweights, xdata) are not listed in the tree; the examine log line `Wire layers: standard is DRAWING-#.dwg with N wire layer(s): ...` shows what the doctor read.
+`reference\CUSTOM PROJECT TEMPLATE 2.0\` at the root of this workspace (moved there from a doubled `CUSTOM PROJECT TEMPLATE 2.0\CUSTOM PROJECT TEMPLATE 2.0\` folder in the 2026-11-10 cleanup) holds the real files: `DRAWING-#.dwg`, `E-CAD CUSTOM PROJECT TEMPLATE 2.aepx`, `.wdp`, `.wdt`, `_wdtitle.wdl`, `STOCKCODE-E001.dwg` and a `_V` folder (Vault version files). The doctor does not compare the bundled copy with the real files at build or run time; refresh `config\standard\` by hand when the template changes (see the [developer guide](DEVELOPER-GUIDE.md)). Drawings are never bundled, so `WD_M` insertion and the whole wire-layer check need the Vault folder. The wire layers of `DRAWING-#.dwg` (names, colours, linetypes, lineweights, xdata) are not listed in the tree; the examine log line `Wire layers: standard is DRAWING-#.dwg with N wire layer(s): ...` shows what the doctor read.
 
 ## 5. Project files the doctor reads and writes
 
@@ -181,7 +181,7 @@ Limits: two files with the same name from different folders (for example two dra
 
 | File | Written when | Content |
 |---|---|---|
-| `<project folder>\LSE_DoctorReport.txt` | after every successful repair (also partial) | The run log appended, followed by a blank line. UTF-8 without BOM. Pruning messages come after the file is written and are not in it. |
+| `<project folder>\LSE_DoctorReport.txt` | after every successful repair (also partial) | The run log appended, followed by a blank line, including the Vault check-in reminder lines. UTF-8 without BOM. Pruning messages come after the file is written and are not in it. |
 | `%APPDATA%\LSE\LSE_Doctor\Logs\DoctorRepair_<yyyyMMdd_HHmmss>.txt` | only when a repair fails after the backup stage | The run log followed by `Detail: <exception text>`. Nothing deletes old files here. |
 | Text from the "Report" button | when the user saves it | `DiagnosisService.Render` output. |
 
@@ -190,3 +190,16 @@ See [OPERATIONS.md](OPERATIONS.md#reading-the-log) for the line-by-line format.
 ## 8. The USERS1 system variable
 
 `TryGetActiveProject` sets `USERS1` to an empty string, runs the active-project LISP (which stores the result in `USERS1`), reads the value and clears it again. Any other tool or LISP that uses `USERS1` at the same moment would conflict. Not verified on a workstation.
+
+## 9. Vault working folder
+
+Projects and the template normally live under `C:\_Lake_Shore_E_Vault\`, the Autodesk Vault working folder. The Vault client marks files that are not checked out read-only. The doctor reads only that attribute; it never logs in to Vault, never checks files in or out, and holds no Vault state.
+
+| Check | Where | Effect |
+|---|---|---|
+| Read-only refusal | `RepairService.Execute` through `VaultProbe.RequireWritable` | Before the backup folder is created, every file the repair would edit (the `.wdp`, an existing `.wdt` or `.wdl` being edited, every DWG with a ticked drawing action) is tested. Any read-only one stops the run; the message lists them all and ends "Nothing was changed." |
+| Check-in reminder | end of a successful run, `VaultProbe.CheckinReminder` | Lists the edited and created files inside the working folder that are not checked in yet. The `_LSE_DOCTOR_BACKUP` folder is not listed; leave it out of the check-in. |
+| Working-folder test | `VaultProbe.InVaultWorkingFolder` | A path containing `\_Lake_Shore_E_Vault\` (or under `C:\_Lake_Shore_E_Vault\`). Decides the wording of the refusal and the Get Latest Version hints in `LSEDOCTORDIAG`. |
+| Diagnostics | `LSEDOCTORDIAG` | Host .NET, installed Vault client (folder, file version, target .NET, whether it can load in this host) and the Vault add-in login. Information only. |
+
+The scan skips folders named `_V` (Vault version folders). Not verified against a live Vault.
