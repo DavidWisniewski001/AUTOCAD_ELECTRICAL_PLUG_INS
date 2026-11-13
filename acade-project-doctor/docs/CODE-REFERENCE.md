@@ -1,6 +1,6 @@
 # Code reference: LSE_Doctor
 
-Maintained by DCW. Last reviewed 2026-11-10.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 Every source file, every type and every public member of the doctor, with inputs, outputs, exceptions, side effects and callers. Private helpers are summarised. All code is in namespace `LSE.AutoCADElectrical.ProjectDoctor`. See [ARCHITECTURE.md](ARCHITECTURE.md) for how the pieces fit.
 
@@ -18,6 +18,10 @@ Every source file, every type and every public member of the doctor, with inputs
 - [src/WireLayerService.cs](#srcwirelayerservicecs)
 - [src/AcadeBridgeService.cs](#srcacadebridgeservicecs)
 - [src/DiagnosticsService.cs](#srcdiagnosticsservicecs)
+- [src/GridService.cs](#srcgridservicecs)
+- [src/HelpText.cs](#srchelptextcs)
+- [src/BuildInfo.cs](#srcbuildinfocs)
+- [src/VaultProbe.cs](#srcvaultprobecs)
 - [Forms](#forms)
 - [Project, rules and manifest files](#project-rules-and-manifest-files)
 
@@ -31,6 +35,7 @@ Defined in `Commands` (`src/Plugin.cs`). All use `CommandFlags.Modal`. Each wrap
 | `LSEDOCTORSCAN` | `Commands.Scan` | Same, with `ScanForm(active)`. Does not use the near-drawing guess. |
 | `LSEDOCTORSETTINGS` | `Commands.Settings` | Shows `DoctorSettingsForm`. |
 | `LSEDOCTORDIAG` | `Commands.Diag` | Shows `TextReportForm("LSE_Doctor Diagnostics", DiagnosticsService.BuildReport())`. |
+| `LSEDOCTORHELP` | `Commands.Help` | Shows `TextReportForm("LSE_Doctor - help", HelpText.All, wrap: true)`: the four help texts in one window. Added 2026-11-12 (r7); also listed in the bundle manifest. |
 
 ## src/Plugin.cs
 
@@ -39,7 +44,7 @@ Assembly attributes: `ExtensionApplication(typeof(Plugin))` and `CommandClass(ty
 | Type | Members |
 |---|---|
 | `Plugin : IExtensionApplication` | `Initialize()` and `Terminate()`, both empty. |
-| `Commands` | `Doctor()`, `Scan()`, `Settings()`, `Diag()` as in the table above. |
+| `Commands` | `Doctor()`, `Scan()`, `Settings()`, `Diag()`, `Help()` as in the table above. |
 
 ## src/Models.cs
 
@@ -137,7 +142,7 @@ One difference. Created by `DiagnosisService`; changed only through `Selected` b
 
 ### Diagnosis
 
-Result of `Examine`. Members: `WdpPath`, `Folder`, `ProjectName` (computed), `Standard`, `Rules`, `Findings`, `Drawings` (parsed entries), `Log`, `DrawingsChecked`, `Examined`, `TemplateDrawing` (the inspection of the template drawing when the wire-layer check ran, else null; `RepairService` passes it to `WireLayerService.Resolved`). Computed: `Errors`, `Warnings`, `Infos`, `Healthy` (no errors and no warnings), `Recommended` (count), `Selected` (count of selected findings whose action is not `None`), `Status` ("Healthy" or "N error(s), M warning(s)").
+Result of `Examine`. Members: `WdpPath`, `Folder`, `ProjectName` (computed), `Standard`, `Rules`, `Findings`, `Drawings` (parsed entries), `Log`, `DrawingsChecked`, `OpenDrawings` (r7: how many listed drawings were skipped because they are open in the editor; `DoctorForm.Examine` reports the count on the status line), `Examined`, `TemplateDrawing` (the inspection of the template drawing when the wire-layer check ran, else null; `RepairService` passes it to `WireLayerService.Resolved`). Computed: `Errors`, `Warnings`, `Infos`, `Healthy` (no errors and no warnings), `Recommended` (count), `Selected` (count of selected findings whose action is not `None`), `Status` ("Healthy" or "N error(s), M warning(s)").
 
 ### RepairResult
 
@@ -167,7 +172,7 @@ One layer table record as read by `Inspect`.
 | `Color` | `LayerTableRecord.Color.ToString()`; used as the comparison key. |
 | `Linetype` | Name of the linetype record, or `?` if it could not be opened. |
 | `LineWeight` | `(int)LayerTableRecord.LineWeight`: hundredths of a millimetre; -3 default, -2 ByBlock, -1 ByLayer. |
-| `IsPlottable`, `IsOff`, `IsFrozen`, `IsLocked` | Flags as read. Only `IsPlottable` is written back by a repair; none of the four is compared. |
+| `IsPlottable`, `IsOff`, `IsFrozen`, `IsLocked` | Flags as read. Only `IsPlottable` is compared (`WireLayerService.Differences`) and written back by a repair; the other three are never compared or changed. |
 | `Description` | Layer description or `""`. |
 | `XdataApps` | Registered-application names found in the record's xdata. |
 | `EntityCount` | Entities on the layer across every block table record (layouts and block definitions). |
@@ -268,7 +273,7 @@ Private checks, in the order run. The finding catalogue (severities, recommended
 
 | Member | Behaviour |
 |---|---|
-| `Execute(dx, settings, progress?)` | The transaction in [ARCHITECTURE.md](ARCHITECTURE.md#42-repair-transaction). Returns a `RepairResult`. Throws `InvalidOperationException("Nothing is ticked...")`, `FileNotFoundException`, `InvalidOperationException("Read-only file: ...")` before any change; throws `InvalidOperationException` with the full log as its message after a rollback. The touched-file list (read-only check and backup) includes the `Target` of every ticked finding with `IsDrawingAction`. After the text files, the drawing findings are grouped by `Target` (case-insensitive) into one `DrawingRepairRequest` each (`InsertWdm` sets the flag, `SetAttribute` adds `Name` to `Value` in `Attributes`, the layer actions add `Name` to their list); the log gets `Repairing drawing <file> (n repair(s))` and the lines `DrawingInspectionService.Repair` returns, indented; `Applied` grows by the group size. Verification examines the text files again, inspects each repaired drawing once and asks `WireLayerService.Resolved` for every drawing finding. Side effects: backup folder, edited and created files, rewritten DWGs, `LSE_DoctorReport.txt`, pruning, `RecentProjects`. Callers: `DoctorForm.Repair`, `ScanForm.RepairTicked`. |
+| `Execute(dx, settings, progress?)` | The transaction in [ARCHITECTURE.md](ARCHITECTURE.md#42-repair-transaction). Returns a `RepairResult`. Throws `InvalidOperationException("Nothing is ticked...")`, `FileNotFoundException`, or the `VaultProbe.RequireWritable` exception ("This file is read-only: ..." / "These files are read-only: ... Nothing was changed.") before any change; throws `InvalidOperationException` with the full log as its message after a rollback. The touched-file list (read-only check and backup) includes the `Target` of every ticked finding with `IsDrawingAction`. After the text files, the drawing findings are grouped by `Target` (case-insensitive) into one `DrawingRepairRequest` each (`InsertWdm` sets the flag, `SetAttribute` adds `Name` to `Value` in `Attributes`, the layer actions add `Name` to their list); the log gets `Repairing drawing <file> (n repair(s))` and the lines `DrawingInspectionService.Repair` returns, indented; `Applied` grows by the group size. Verification examines the text files again, inspects each repaired drawing once and asks `WireLayerService.Resolved` for every drawing finding. After the `Status:` line it appends `VaultProbe.CheckinReminder(touched + created)`. Side effects: backup folder, edited and created files, rewritten DWGs, `LSE_DoctorReport.txt`, pruning, `RecentProjects`. Callers: `DoctorForm.Repair`, `ScanForm.RepairTicked`. |
 | `ApplyFile` (private) | For one target file (`wdt` or `wdl`): create from the standard if ticked and absent, then apply edits and write once. Throws "The standard has no <file> to copy from." if the standard lacks the file. |
 | `Prune` (private) | Deletes the oldest backup folders beyond `keep`, clearing read-only attributes first. Failures are logged, not thrown. |
 
@@ -315,7 +320,7 @@ Pure helpers; no AutoCAD types, so they run in a console test. `Ci` is `StringCo
 | `SingleNames(inspection, rules)` | The trimmed values of the single-name attributes, excluding blanks and values with wildcards. |
 | `WireLayers(inspection, rules)` | Names of the inspection's layers that match a list pattern, are a single name, or have wire xdata. |
 | `IsStandard(name, template, rules, templateWireLayers)` | The name is a template wire layer, or matches the template's list patterns, or is one of the template's single names. |
-| `Differences(drawing, template, rules)` | Text lines for colour, linetype and lineweight differences, plus "no AutoCAD Electrical wire-type data on the layer" when the template layer has wire xdata and the drawing's has none. Plot flag, description and the on/off/frozen/locked flags are not compared. |
+| `Differences(drawing, template, rules)` | Text lines for colour, linetype, lineweight and plot flag differences, plus "no AutoCAD Electrical wire-type data on the layer" when the template layer has wire xdata and the drawing's has none. Description and the on/off/frozen/locked flags are not compared. |
 | `SameLayer(drawing, template, rules)` | `Differences` is empty. |
 | `Resolved(finding, after, template?, rules)` | False if the re-inspection has an error or the drawing is open. `InsertWdm`: `HasWdm`. `SetAttribute`: `SameValue` of the new attribute text and `finding.Value`. `CreateLayer`, `RepairLayer`: the layer exists and (if the template has it) `SameLayer`. `PurgeLayer`: the layer is gone. Any other action: true. Caller: `RepairService.Execute`. |
 
@@ -334,34 +339,93 @@ Pure helpers; no AutoCAD types, so they run in a console test. `Ci` is `StringCo
 
 ### DiagnosticsService (static)
 
-`BuildReport()` returns the text of the `LSEDOCTORDIAG` report: product line "LSE_Doctor V1", runtime, assembly path, settings path, template path (exists or MISSING), bundled standard, rules path, projects root, backup policy, check settings, both LISP strings; then `Rules: PASS/FAIL`, and if the rules loaded, `Standard: PASS/FAIL` with the `.wdp` counts and encoding, `.wdt` path with mapping count and title block names, `.wdl` path with label count, and the template drawing; finally the recent project count. Exceptions from rules or standard loading are shown as FAIL lines, not thrown.
+`BuildReport()` returns the text of the `LSEDOCTORDIAG` report: `LSE_Doctor diagnostics <time>`, `Build: <BuildInfo.Release>`, runtime, assembly path, settings path, template path (exists, or MISSING with "the bundled copy is used" and, when the path is in the Vault working folder, a Get Latest Version hint), bundled standard, rules path, projects root (exists or MISSING, plus a read-only note when it is in the Vault working folder), backup policy, check settings, both LISP strings; then `Rules: PASS/FAIL`, and if the rules loaded, `Standard: PASS/FAIL` with the `.wdp` counts and encoding, `.wdt` path with mapping count and title block names, `.wdl` path with label count, and the template drawing (or NONE, with the same Get Latest Version hint); then the three `VaultProbe.Report("")` lines (host runtime, Vault client, Vault add-in login); finally the recent project count. Exceptions from rules or standard loading are shown as FAIL lines, not thrown.
+
+## src/GridService.cs
+
+### GridService (static)
+
+Grid logic shared by `DoctorForm` and `ScanForm`, kept out of the forms so `tests\LSE_Doctor.SmokeTest` can run it on a real `DataGridView`. The Fix column of both grids is a read-only `DataGridViewCheckBoxColumn`: the `DataGridView` edit cycle is not used; the forms call the toggle methods from `CellClick` and the space bar. A cell is never replaced after its row exists (the pattern behind the LSE_Env r3 crash).
+
+| Member | Purpose |
+|---|---|
+| `NoteText`, `NoteForeColor`, `ErrorBackColor`, `WarningBackColor`, `HealthyBackColor` | The word painted on report-only rows and the row colours. |
+| `AddFindingColumns(grid)` | The seven findings columns with header tooltips. |
+| `FillFindings(grid, diagnosis, showInfo)` | Clears and refills: one row per finding (Info rows skipped when `showInfo` is false), `Tag` = the `Finding`, box ticked when `Selected` and the action is not `None`, tooltips with the note and the full values, severity colours; rows with `Action == None` are `ReadOnly` with grey text. Returns the row count. |
+| `IsNoteRow(grid, rowIndex)` | True when the row's finding has `Action == None`. |
+| `ToggleFinding(grid, rowIndex)` | Flips `Finding.Selected` and the cell value, invalidates the row; returns the finding, or `null` for a note row or an index out of range. |
+| `PaintFindingCell(grid, e)` | `CellPainting` handler: paints the word `note` over the box of a note row. |
+| `AddScanColumns(grid)` | The five scan columns. |
+| `ScanWord(row)` | `null` when the project has recommended repairs (a box is shown), else `ok` (healthy), `review` (findings but nothing recommended) or `error` (`Tag` is the `.wdp` path string). |
+| `SetScanRow(row, diagnosis, wdp, error, ticked)` | Writes the Tag, the tick (only when repairs are recommended and `ticked`), Status, Recommended, the row colour, `ReadOnly` for word rows and the Fix tooltip. |
+| `ToggleScan(grid, rowIndex)` | Flips the box of a repairable row; returns false for word rows. |
+| `PaintScanCell(grid, e)` | Paints the scan word over the box. |
+| `PaintWord(grid, e, word)` | Shared painter: background, then the word centred in `NoteForeColor`, `e.Handled = true`. |
+
+## src/HelpText.cs
+
+### HelpText (static)
+
+Plain-language guides shown by the Help buttons and `LSEDOCTORHELP`: `Doctor` (the LSEDOCTOR window: steps, grid columns, why rows are ticked or cannot be ticked, open drawings, what Repair does, undo, buttons, messages), `Scan`, `Settings`, `Findings` (what each finding category means and what its repair does). `Fix(text)` normalises line endings to CRLF for the text box; `All` joins the four with rule lines. Written as C# verbatim strings; a doubled quote inside them is a single quote in the window (the smoke test checks none survive).
+
+## src/BuildInfo.cs
+
+### BuildInfo (static)
+
+`Release` (the release tag, `2026-11-12-r7`), `Label` (`LSE_Doctor <tag>`) and `Title(window)` (`LSE_Doctor: <window>   [<tag>]`), used by every form title and by `DiagnosticsService`. Bump `Release`, the csproj `Version` / `InformationalVersion` and the bundle `AppVersion` together on every release so a stale DLL in the bundle folder is recognisable from the title bar.
+
+## src/VaultProbe.cs
+
+### VaultProbe (static)
+
+Shared Vault awareness; an identical copy lives in every LSE plugin folder (keep them in step). Nothing from the Vault SDK is referenced at compile time: it looks only at assemblies the host has already loaded and at the Vault client install folder on disk. The doctor uses `RequireWritable`, `CheckinReminder`, `InVaultWorkingFolder` and `Report`; the rest supports `Report`.
+
+| Member | Behaviour |
+|---|---|
+| `VaultBaseAssembly`, `WebServicesAssembly`, `DefaultWorkingFolder` | `Connectivity.Application.VaultBase`, `Autodesk.Connectivity.WebServices`, `C:\_Lake_Shore_E_Vault`. |
+| `RuntimeMajor`, `RuntimeLine()` | Major .NET version of the host process; `Host: <process> on <framework> (.NET n)`. |
+| `Loaded(name)` | An already loaded assembly with that simple name, or null. |
+| `AddinConnection()` | Reflection into `ConnectionManager.Instance.Connection` of the Vault add-in, or null. Never throws. |
+| `Describe(conn)`, `Str(obj, member)` | `<user> in vault <vault> on <server>`; reads a property or field as text. |
+| `AddinLine()` | "Vault add-in: logged in as ...", "loaded but not logged in ..." or "not loaded in this session ...". |
+| `DiscoverExplorerFolder(configured)` | The configured folder if it exists, else the newest `Program Files\Autodesk\Vault*\Explorer` folder that holds `Autodesk.Connectivity.WebServices.dll`. The doctor passes `""`. |
+| `TargetFrameworkOf(path)`, `TargetMajor(tfm)`, `FileVersion(path)` | Reads the `TargetFrameworkAttribute` from a DLL's metadata without loading it; major version (-1 = .NET Framework, 0 = unknown); file version text. |
+| `RuntimeMismatch(folder)` | Null when the Vault client there can load in this host, else the reason (a .NET Framework build, or built for a newer .NET than the host: install the matching AutoCAD 2026.1.2 / Vault 2026.4 updates together). |
+| `ClientLine(configured)`, `Report(configured)` | The Vault client line; the three lines host, client, add-in joined. Used by `DiagnosticsService`. |
+| `IsReadOnly(path)` | The file exists and has the ReadOnly attribute. |
+| `InVaultWorkingFolder(path)` | The full path contains `\_Lake_Shore_E_Vault\` or starts with `C:\_Lake_Shore_E_Vault\`. |
+| `RequireWritable(files, what = "Nothing was changed.")` | Throws one `InvalidOperationException` listing every read-only file, with a check-out hint ("the Vault tab in AutoCAD / Inventor, or Vault Explorer > Check Out") when any is in the working folder, else "clear the read-only attribute", then `what`. Called by `RepairService.Execute` before the backup. |
+| `CheckinReminder(touched)` | Yields "Vault: these N item(s) are in the Vault working folder and are not checked in yet. Check them in (new files: Add to Vault) ..." plus one indented path per existing item in the working folder; nothing otherwise. |
+
+Not verified: none of this has run against a real Vault 2026 install or inside AutoCAD.
 
 ## Forms
 
-All forms are `sealed` WinForms classes. They read `AppSettings` when constructed.
+All forms are `sealed` WinForms classes. They read `AppSettings` when constructed. Since r7 every form sets its title with `BuildInfo.Title`, owns a `ToolTip` with a tip on every control, has a Help button that opens the matching `HelpText` in a wrapping `TextReportForm`, and echoes each status message as the status label's tooltip.
 
 ### DoctorForm (`src/DoctorForm.cs`)
 
-`DoctorForm(string initialProject, string activeProject)`. Public: `ReloadProjectPath` (set after a successful repair of the active project when `ReactivateAfterRepair` is on). On `Shown` it loads the standard and, if the start project file exists, examines it at once. The drawing check box reads "Check every drawing: WD_M block, LSE title block and wire layers against the template drawing (opens each DWG; slower)". The grid's Repair column shows `Finding.ActionText`. Controls and behaviour are described step by step in [OPERATIONS.md](OPERATIONS.md). Private members: `BuildLayout`, `LoadStandard`, `Browse`, `UseActiveProject`, `Examine`, `FillGrid`, `UpdateSummary`, `Tick`, `ShowReport`, `Repair`, `Status`.
+`DoctorForm(string initialProject, string activeProject)`. Public: `ReloadProjectPath` (set after a successful repair of the active project when `ReactivateAfterRepair` is on). On `Shown` it loads the standard and, if the start project file exists, examines it at once. The drawing check box reads "Check every drawing: WD_M block, LSE title block and wire layers against the template drawing (opens each DWG; slower)". The grid's Repair column shows `Finding.ActionText`. The grid is built by `GridService`: `CellClick` on column 0 (and the space bar on the current row) calls `ToggleRow`, which uses `GridService.ToggleFinding` and reports the tick on the status line; a click on a note row calls `ExplainNoteRow`; `CellPainting` paints `note` on report-only rows. `Examine` adds the count of drawings open in AutoCAD to the status line. The drawing check box is read on each `Examine` and never saved; it starts from `AppSettings.CheckDrawings`. "Show informational rows" (on by default) refills the grid at once through `FillGrid`. Tick recommended sets `Selected = Recommended`, Tick all sets it on every finding with an action (protected and enforcement-off rows included), Untick all clears it. `Repair` confirms, calls `RepairService.Execute` with the status line as progress, sets `ReloadProjectPath` when the project is the active one and `ReactivateAfterRepair` is on, shows the log when `ShowReportAfterRepair` is on, then examines again; on an exception it titles the text window "repair refused" when the message contains "Nothing was changed" or "Nothing is ticked", otherwise "repair FAILED (rolled back)". `AcceptButton` is Examine, `CancelButton` is Close. Controls and behaviour are described step by step in [OPERATIONS.md](OPERATIONS.md). Private members: `BuildLayout`, `LoadStandard`, `Browse`, `UseActiveProject`, `Examine`, `FillGrid`, `ToggleRow`, `ExplainNoteRow`, `UpdateSummary`, `Tick`, `ShowHelp`, `ShowReport`, `Repair`, `Status`.
 
 ### ScanForm (`src/ScanForm.cs`)
 
-`ScanForm(string activeProject)`. Public: `ReloadProjectPath`. Private members: `Browse`, `Scan` (saves the root and the drawing-check choice to settings first), `Walk` (recursive; skips the template itself, folders named like the backup folder and folders named `_V`; reports unreadable folders on the status line), `AddRow`, `RefreshRow`, `Tick`, `UpdateSummary`, `OpenInDoctor`, `RepairTicked`, `Status`. `RepairTicked` selects exactly the recommended findings of each ticked project and calls `RepairService.Execute` per project, so one failure does not stop the batch.
+`ScanForm(string activeProject)`. Public: `ReloadProjectPath`. Private members: `Browse`, `Scan` (saves the root and the drawing-check choice to settings first), `Walk` (recursive; skips the template itself, folders named like the backup folder and folders named `_V`; reports unreadable folders on the status line), `AddRow`, `RefreshRow(row, wdp, tickWhenRecommended)` (examines and hands the row to `GridService.SetScanRow`), `ToggleRow` (via `GridService.ToggleScan`; explains `ok` / `review` / `error` cells on the status line), `Tick`, `UpdateSummary`, `ShowHelp`, `OpenInDoctor` (also on double-click of any column but Fix), `RepairTicked`, `Status`. `RepairTicked` selects exactly the recommended findings of each ticked project and calls `RepairService.Execute` per project, so one failure does not stop the batch. It always shows its combined report (it ignores `ShowReportAfterRepair`) and heads every exception, including a read-only refusal, `<wdp> FAILED (rolled back)`. After `OpenInDoctor` and after a batch repair the row is re-examined with `tickWhenRecommended` false, so its box comes back clear.
 
 ### DoctorSettingsForm (`src/DoctorSettingsForm.cs`)
 
-Edits all `AppSettings` except `RecentProjects`. Save validates `BackupsToKeep` (whole number of 1 or more) and the backup folder name (not empty, no invalid file name characters), writes with `SettingsService.Save`, closes with OK. The Diagnostics button opens the same report as `LSEDOCTORDIAG`.
+Edits all `AppSettings` except `RecentProjects`; every row has a tooltip, and Help opens `HelpText.Settings`. Save validates `BackupsToKeep` (whole number of 1 or more) and the backup folder name (not empty, no invalid file name characters), writes with `SettingsService.Save`, closes with OK. The Diagnostics button opens the same report as `LSEDOCTORDIAG`. There is no Cancel button (`CancelButton = null`, so Esc does nothing); closing the window with its title-bar X discards edits.
 
 ### TextReportForm (`src/TextReportForm.cs`)
 
-`TextReportForm(string title, string text)`: monospaced read-only box with Save as (default file name `LSE_DoctorReport.txt`), Copy, Close.
+`TextReportForm(string title, string text, bool wrap = false)`: read-only box with Save as (default file name `LSE_DoctorReport.txt`, or `LSE_Doctor_Help.txt` when wrapping), Copy, Close. Monospaced and unwrapped for reports; `wrap: true` (help texts) switches to Segoe UI, word wrap and a vertical scroll bar.
 
 ## Project, rules and manifest files
 
 | File | Notes |
 |---|---|
-| `LSE_Doctor.csproj` | `net8.0-windows`, WinForms, nullable and implicit usings on, `LangVersion latest`, x64, `EnableDynamicLoading`, no framework folder in the output path. `AcadDir` defaults to `C:\Program Files\Autodesk\AutoCAD 2026`; if `acdbmgd.dll` exists there, references `accoremgd`, `acdbmgd`, `acmgd` with `Private=false`; otherwise `PackageReference AutoCAD.NET 25.1.0` with `ExcludeAssets="runtime"`. Copies `config\LseDoctorRules.json` to the output root and `config\standard\*` to `standard\`. No assembly version property is set. |
+| `LSE_Doctor.csproj` | `net8.0-windows`, WinForms, nullable and implicit usings on, `LangVersion latest`, x64, `EnableDynamicLoading`, no framework folder in the output path. `AcadDir` defaults to `C:\Program Files\Autodesk\AutoCAD 2026`; if `acdbmgd.dll` exists there, references `accoremgd`, `acdbmgd`, `acmgd` with `Private=false`; otherwise `PackageReference AutoCAD.NET 25.1.0` with `ExcludeAssets="runtime"`. Copies `config\LseDoctorRules.json` to the output root and `config\standard\*` to `standard\`. `Version` 1.1.0, `AssemblyVersion` and `FileVersion` 1.1.0.0, `InformationalVersion` `2026-11-12-r7`; bump them with `BuildInfo.Release` and the bundle `AppVersion`. |
 | `config/LseDoctorRules.json` | See [DATA-STORES.md](DATA-STORES.md#lsedoctorrulesjson). |
 | `config/standard/*` | See [DATA-STORES.md](DATA-STORES.md#the-lse-template-files). |
-| `bundle/LSE_Doctor.bundle/PackageContents.xml` | `Name="LSE_Doctor"`, `AppVersion="1.0.0"`, `RuntimeRequirements Platform="AutoCAD*" SeriesMin="R25.1" SeriesMax="R25.1"`, module `./Contents/LSE_Doctor.dll`, `LoadOnCommandInvocation="True"`, `LoadOnAutoCADStartup="False"`, four commands in group `LSEDOCTOR`. |
+| `bundle/LSE_Doctor.bundle/PackageContents.xml` | `Name="LSE_Doctor"`, `AppVersion="1.1.0"`, `RuntimeRequirements Platform="AutoCAD*" SeriesMin="R25.1" SeriesMax="R25.1"`, module `./Contents/LSE_Doctor.dll`, `LoadOnCommandInvocation="True"`, `LoadOnAutoCADStartup="False"`, five commands in group `LSEDOCTOR` (`LSEDOCTORHELP` since r7). |
 | `.gitignore` | `bin/`, `obj/`, `*.user`, `.vs/`. |
+| `tests/LSE_Doctor.SmokeTest/` | Console project (`net8.0-windows`, WinForms) referencing `bin\Release\LSE_Doctor.dll`; 45 checks on `GridService`, `HelpText`, `BuildInfo` and `Diagnosis.OpenDrawings`. See DEVELOPER-GUIDE section 8. |

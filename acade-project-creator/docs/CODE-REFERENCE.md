@@ -1,6 +1,6 @@
 # Code reference: LSE Project Tools
 
-Maintained by DCW. Last reviewed 2026-11-10.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 One section per source file, lowest dependency first. Every public member is listed with what it does, what it throws and what it touches on disk. Read [ARCHITECTURE.md](ARCHITECTURE.md) first for how the pieces fit.
 
@@ -122,7 +122,7 @@ Callers: `Commands.NewProject`, `Commands.Activate`. Unchanged since V1.
 
 | Member | Behaviour |
 |---|---|
-| `Execute(AppSettings s, ProjectTemplates t, ProjectRequest q, Action<string>? progress)` | The transaction in [ARCHITECTURE.md](ARCHITECTURE.md) section 5. Starts with `Validate(t, q)`. Every log line is also passed to `progress`. Returns `ProjectResult`. Throws `InvalidOperationException` whose message is the complete log after rolling back. |
+| `Execute(AppSettings s, ProjectTemplates t, ProjectRequest q, Action<string>? progress)` | The transaction in [ARCHITECTURE.md](ARCHITECTURE.md) section 5. Starts with `Validate(t, q)`. For an existing folder it refuses (before writing) an existing `.wdp`, any existing `_wdtitle.wdl`, `.wdt` or `.aepx` of the same name (`A project sidecar file already exists: <path>`), and a read-only `LSE_ProjectReport.txt` (`VaultProbe.RequireWritable`). After `Status: SUCCESS` it appends `VaultProbe.CheckinReminder` lines for the created files and the job folder. Every log line is also passed to `progress`. Returns `ProjectResult`. Throws `InvalidOperationException` whose message is the complete log after rolling back. Saves `s` (recent list) on success, so it writes back the settings object the wizard loaded when it opened. |
 | `Validate(ProjectTemplates t, ProjectRequest q)` | Job number must satisfy `TemplateService.JobNumberOk(t.Job, ...)` (message: the hint, the example and the entered text); `Title` non-blank; every description line with `Required` non-blank (`Description line n (LABEL) is required.`); project name a valid file name; project folder rooted; drawing template exists; template project exists when set; at least one drawing; each file name valid, without folder separators, unique after `EnsureDwg` (case-insensitive), with a non-blank sheet; a row's template, resolved with `RowTemplate`, exists when set. Throws `InvalidOperationException` or `FileNotFoundException`. |
 | `Validate(ProjectRequest q)` | `Validate(new ProjectTemplates(), q)`: the V1 free-form job rule, no required lines beyond the title. |
 | `TemplateFolder(ProjectRequest q)` | `SettingsService.TemplateFolder(q.BaseProjectPath, q.DrawingTemplatePath)`. |
@@ -144,7 +144,30 @@ Title block values built per drawing: every description line with an attribute, 
 
 | Member | Behaviour |
 |---|---|
-| `BuildReport()` | Returns the multi-line report shown by `LSEPROJECTDIAG`, headed `LSE Project Tools V2 (Lake Shore Electric)`: runtime, assembly path, settings path, vault working folder (or `NOT FOUND (expected C:\_Lake_Shore_E_Vault; ...)`), jobs root, LSE template project, drawing template, templates JSON, symbol library, each with `(exists)` or `(MISSING)`, the WD_M library file, the activation LISP, the copy-sidecars and write-aepx switches; templates JSON result (line count, product lines, drawing sets), the job number rule with its naming patterns, title block names; `Template folder file <name>: PASS/MISSING` for `vault.drawingTemplate` and `vault.coverTemplate`; `Template .wdt` and `Template _wdtitle.wdl` PASS (copied) or MISSING (generated); `Drawing set <set> sheet <n> template MISSING: <path>` per unresolved per-row template; template drawing inspection (WD_M present, layouts, matched title blocks); template project parse counts and encoding, and its `+[2]` schematic icon menu with `(exists)` or `(MISSING on this machine)`; recent project count. Each probe is wrapped so one failure is reported as `FAIL <message>` without stopping the others. |
+| `BuildReport()` | Returns the multi-line report shown by `LSEPROJECTDIAG`, headed `LSE Project Tools V2 (Lake Shore Electric)`: runtime, the three `VaultProbe.Report("")` lines (host process and .NET, Vault client found by discovery only since this plugin has no Vault Explorer setting, Vault add-in login), assembly path, settings path, vault working folder (or `NOT FOUND (expected C:\_Lake_Shore_E_Vault; ...)`), jobs root, LSE template project, drawing template, templates JSON, symbol library, each with `(exists)` or `(MISSING)`, the WD_M library file, the activation LISP, the copy-sidecars and write-aepx switches; templates JSON result (line count, product lines, drawing sets), the job number rule with its naming patterns, title block names; `Template folder file <name>: PASS/MISSING` for `vault.drawingTemplate` and `vault.coverTemplate`; `Template .wdt` and `Template _wdtitle.wdl` PASS (copied) or MISSING (generated); `Drawing set <set> sheet <n> template MISSING: <path>` per unresolved per-row template; template drawing inspection (WD_M present, layouts, matched title blocks); template project parse counts and encoding, and its `+[2]` schematic icon menu with `(exists)` or `(MISSING on this machine)`; `Jobs root is inside the Vault working folder: new job folders must be added to Vault after creation` when it is; recent project count. Every MISSING path, file or per-row template that lies inside the vault working folder gets the hint `- not downloaded yet? In Vault Explorer select the folder and Get Latest Version`. Each probe is wrapped so one failure is reported as `FAIL <message>` without stopping the others. |
+
+## src/VaultProbe.cs
+
+### `static class VaultProbe`
+
+Shared helper, an identical copy in every LSE plugin folder (keep them in step). Nothing from the Vault SDK is referenced at compile time. Constants: `VaultBaseAssembly` = `Connectivity.Application.VaultBase`, `WebServicesAssembly` = `Autodesk.Connectivity.WebServices`, `DefaultWorkingFolder` = `C:\_Lake_Shore_E_Vault`.
+
+| Member | Behaviour | Used here by |
+|---|---|---|
+| `RuntimeMajor`, `RuntimeLine()` | Host process name and .NET version (`Host: acad on .NET 8.0.x (.NET 8)`). | `Report` |
+| `Loaded(string name)` | An assembly with that simple name already loaded in the process, or null. | `AddinLine` |
+| `AddinConnection()` | By reflection: `ConnectionManager.Instance.Connection` of the Vault add-in (`Connectivity.Application.VaultBase`), or null. Never throws. | `AddinLine` |
+| `Describe(object)`, `Str(object, string)` | `<user> in vault <vault> on <server>` from the connection's properties. | `AddinLine` |
+| `AddinLine()` | `Vault add-in: logged in as ...`, `... loaded but not logged in (log in on the Vault tab)`, or `... not loaded in this session (...)`. | `Report` |
+| `DiscoverExplorerFolder(string configured)` | The configured folder when it exists, else the newest `Program Files\Autodesk\Vault*\Explorer` (or x86) holding `Autodesk.Connectivity.WebServices.dll`, by the year in the folder name. | `ClientLine` |
+| `TargetFrameworkOf(string path)`, `TargetMajor(string?)`, `FileVersion(string)` | Reads the `TargetFrameworkAttribute` from a DLL's metadata without loading it; major .NET version (-1 = .NET Framework, 0 = unknown); file version. | `RuntimeMismatch`, `ClientLine` |
+| `RuntimeMismatch(string explorerFolder)` | Null when the Vault client could load in this process; else the reason (.NET Framework build, or built for a newer .NET than the host, with the advice to update AutoCAD and Vault 2026 together). | `ClientLine` |
+| `ClientLine(string configured)` | `Vault client: <folder> (file version ..., built for ...) - compatible with this host` or `- NOT LOADABLE HERE: ...`, or `Vault client: not found ...`. | `Report` |
+| `Report(string configured)` | `RuntimeLine`, `ClientLine`, `AddinLine` joined by new lines. Called with `""`. | `DiagnosticsService.BuildReport` |
+| `IsReadOnly(string path)` | True when the file exists and has the read-only attribute. | `RequireWritable` |
+| `InVaultWorkingFolder(string path)` | True when the full path contains `\_Lake_Shore_E_Vault\` or starts with `C:\_Lake_Shore_E_Vault\`. | diagnostics hints, `CheckinReminder` |
+| `RequireWritable(IEnumerable<string> files, string what = "Nothing was changed.")` | Throws `InvalidOperationException` listing the read-only files, with check-out advice when they are in the vault working folder, otherwise "clear the read-only attribute". | `ProjectTransactionService.Execute` (existing folder, `LSE_ProjectReport.txt` only) |
+| `CheckinReminder(IEnumerable<string> touched)` | Yields `Vault: these n item(s) are in the Vault working folder and are not checked in yet. ...` and one indented line per item that exists and lies in the working folder; nothing otherwise. | `ProjectTransactionService.Execute` |
 
 ## src/ProjectSettingsForm.cs
 
@@ -176,7 +199,10 @@ Behaviour worth knowing:
 - Changing the drawing set shows its description, puts its `fileNamePattern` into the pattern box and reloads the drawing list when the list is empty or still auto-named; otherwise the list is left alone.
 - **Load drawing set** numbers rows from each `DrawingDef.Sheet` (digits, `000` format); a row without a sheet takes the previous number plus 1. **Add drawing** inserts after the current row with the next free number (highest + 1), a `DRAWING TYPE` description, the first configured section and a file name from the pattern, and puts the cursor in the drawing type cell. **Move up/down** only reorders.
 - File names are regenerated from the pattern and the Sheet cells (`autoNamed`) whenever the job number, a customer line, the project name or a Sheet cell changes, and when entering step 3 or later from step 1 or 2. Editing any file name cell sets `autoNamed` false; **Regenerate file names** sets it true again. **Renumber 001..n** rewrites the Sheet cells sequentially and regenerates.
-- **Compose line 7** writes `TemplateService.ComposeUnitSpecs(...)` into the box of the line with role `specs`, or shows a message when there is none. The builder's caption is hard-coded "line 7".
+- **Compose line 7** writes `TemplateService.ComposeUnitSpecs(...)` into the box of the line with role `specs`, or shows a message when there is none. The caption and button are built from the JSON: `Unit specs builder (line 7, UNIT SPECS):` and `Compose line 7` for the shipped file; without a `specs` line the caption says so and the button is disabled.
+- The nine option check boxes start from the saved settings (except **Allow an existing, non-empty project folder**, which always starts unticked) and are copied into the `ProjectRequest`; nothing in the wizard writes them back to `settings.json`.
+- Changing the product line can select another drawing set; while file names are still automatic (`autoNamed`) that reloads the drawing list without asking, so grid edits made before (drawing types, templates) are lost. Only **Load drawing set** asks first.
+- The description labels read `n. LABEL *   (ATTRIBUTE)`; a line without an attribute shows empty brackets `()`.
 - Clicking a step in the list validates every intervening step in order and stops at the first failure.
 - After a successful create, **Back** and **Create project** are disabled and navigating away shows a message to close and start again. The success message box reminds the engineer to check the job folder into the vault.
 - On failure the log pane keeps the lines received so far, appends a rollback note, and shows the full message; **Create project** is re-enabled.
@@ -191,7 +217,7 @@ Empty `Initialize` and `Terminate`.
 
 | Command | Flags | Behaviour |
 |---|---|---|
-| `LSENEWPROJECT` | `Modal, Session` | Shows `NewProjectForm` modally. If `Result` is set: `AcadeBridgeService.ActivateProject` when `ActivateProject` was ticked, then `OpenDrawing` of the first drawing when `OpenFirstDrawing` was ticked. Exceptions go to a message box titled `LSE Project Tools`. |
+| `LSENEWPROJECT` | `Modal, Session` | Shows `NewProjectForm` modally (`Application.ShowModalDialog`). If `Result` is set: `AcadeBridgeService.ActivateProject` when `ActivateProject` was ticked, then `OpenDrawing` of the first drawing when `OpenFirstDrawing` was ticked. Exceptions go to a message box titled `LSE Project Tools` with the full `ex.ToString()` (stack trace included), as in every command. |
 | `LSEPROJECTACTIVATE` | `Modal, Session` | `OpenFileDialog` filtered to `*.wdp`, then `ActivateProject`. |
 | `LSEPROJECTSETTINGS` | `Modal` | Shows `ProjectSettingsForm`. |
 | `LSEPROJECTDIAG` | `Modal` | Message box with `DiagnosticsService.BuildReport()`. |

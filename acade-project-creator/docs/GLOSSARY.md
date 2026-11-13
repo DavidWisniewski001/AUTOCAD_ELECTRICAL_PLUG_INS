@@ -1,6 +1,6 @@
 # Glossary: LSE Project Tools
 
-Maintained by DCW. Last reviewed 2026-11-10.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 Terms used across the code and documentation, in alphabetical order.
 
@@ -22,6 +22,8 @@ Terms used across the code and documentation, in alphabetical order.
 | Activation | Making a project the active one in the Project Manager. Done by sending a LISP expression to the command line after the wizard closes. |
 | `AutoCAD.NET` | NuGet reference package holding AutoCAD's managed API assemblies for compiling without an install. 25.1.0 corresponds to AutoCAD 2026 on .NET 8. |
 | `AeData` | AutoCAD Electrical's per-user data root, `Documents\Acade 2026\AeData`, holding `Proj`, `en-US\Libs`, `en-US\Catalogs` and more. Only a fallback now; the LSE defaults come from the vault. |
+| Add to Vault, check in, check out | Vault operations done by the engineer in Vault Explorer or on AutoCAD's Vault tab. Project Tools does none of them; its report lists the new files to add. A file that is not checked out is read-only on disk. |
+| Allow an existing, non-empty project folder | Wizard-only check box (step 2) that lets a run reuse a job folder that already holds other files. Not saved between runs. |
 | Base project | V1 name for the template project: the `.wdp` whose `+[n]` and `?[n]` lines are copied into new projects. Setting `BaseProjectPath`. |
 | `boundp` | AutoLISP predicate: true when a symbol has a value. Used so the activation expression does nothing harmful when the function does not exist. |
 | `c:wd_makeproj_current` | AutoLISP function, quoted from an Autodesk community answer, that makes a `.wdp` the current project. Unverified. |
@@ -42,6 +44,7 @@ Terms used across the code and documentation, in alphabetical order.
 | FILENAME | `.wdt` code for the drawing file name without path or extension. Mapped to `DWG_NUMBER`. |
 | Fixed values | `titleBlock.fixed` in the JSON: constant or token text written to named title block attributes. Empty in the shipped JSON. |
 | Folder (Project Manager) | A virtual folder in the project tree (`=====SUB=`), not a disk folder. The grid column "PM folder". |
+| Get Latest Version | Vault Explorer command that downloads the current files of a folder into the working folder. Diagnostics suggests it when a configured path inside the working folder is missing. |
 | IEC project, installation, location | The three codes AutoCAD Electrical can prefix to component tags; set as drawing defaults in WD_M. |
 | Job folder | `<jobs root>\<product line folder>\<level choices>\<job>_<customer>\`, holding the `.wdp`, its sidecars, the sheets and the report. |
 | Job number | The LSE sales order number, `NNNNNN-R` (six digits, dash, release: `001096-1`), rule `job.numberPattern`. A field of its own in the wizard (not a description line); default project name, file name prefix and first part of the job folder name. |
@@ -66,7 +69,10 @@ Terms used across the code and documentation, in alphabetical order.
 | Title Block Update | AutoCAD Electrical command that fills title block attributes project-wide from the `.wdp` and the `.wdt` or `WD_TB` mapping. |
 | Tokens | `{JOB}`, `{CUSTOMER}`, `{QUOTE}`, `{PRODUCTLINE}`, `{PROJECT}`, `{USER}`, `{DATE}`, `{YEAR}`, `{SHEET}`, `{SHEET:n}` in patterns, defaults and fixed values. |
 | Unit specs | Description line 7 (`UNIT SPECS`, attribute `SWBD_AMP_VOLT_KAIC_NEMA`, role `specs`): `SWBD, 2500A, 277/480VAC, 65KA@480V, N1`, composed by the wizard's builder from `unitSpecs` choices. |
-| Vault working folder | The local check-out of the LSE vault, `C:\_Lake_Shore_E_Vault` (or `_Lake_Shore_E_Vault` at the root of another fixed or network drive), holding `CAD Standards\AutoCAD\ECAD Standards` and `Engineering\Custom Sales Order`. Found by `SettingsService.DiscoverVaultRoot`; used as plain file system, no Vault API. |
+| Vault add-in | Autodesk's Vault integration inside AutoCAD (assembly `Connectivity.Application.VaultBase`). Diagnostics reports whether it is loaded and logged in; Project Tools does not use it. |
+| Vault client | The installed Vault Client 2026 (`Program Files\Autodesk\Vault Client 2026\Explorer`). Since Vault 2026.4 it is built for .NET 10, matching AutoCAD 2026.1.2. Diagnostics reports its version and whether it matches the host's .NET. |
+| `VaultProbe` | The shared read-only Vault helper (`src/VaultProbe.cs`, identical in every LSE plugin): diagnostics lines, read-only refusal, check-in reminder. |
+| Vault working folder | The local check-out of the LSE vault, `C:\_Lake_Shore_E_Vault` (or `_Lake_Shore_E_Vault` at the root of another fixed or network drive), holding `CAD Standards\AutoCAD\ECAD Standards` and `Engineering\Custom Sales Order`. Found by `SettingsService.DiscoverVaultRoot`; used as plain file system, no Vault API. `VaultProbe.InVaultWorkingFolder` treats any path containing `\_Lake_Shore_E_Vault\` as inside it. |
 | `wd.env` | AutoCAD Electrical environment file with default paths and settings; applies where a `.wdp` has no `+[n]` entry. |
 | WD_M | AutoCAD Electrical's invisible drawing settings block at 0,0; its attributes hold sheet number, IEC codes, ladder and wire numbering defaults. |
 | `WD_TB` | An attribute some title blocks carry with embedded mapping; when present, Title Block Update ignores the `.wdt`. |

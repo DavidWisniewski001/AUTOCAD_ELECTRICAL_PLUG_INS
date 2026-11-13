@@ -1,6 +1,6 @@
 # Data stores: LSE Project Tools
 
-Maintained by DCW. Last reviewed 2026-11-10.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 Every file the plugin reads or writes, where it lives, what is in it, and what breaks when it is wrong. Paths marked *default* can be changed in `LSEPROJECTSETTINGS`. The order in which these are touched during a create is in [ARCHITECTURE.md](ARCHITECTURE.md) section 5. `<vault>` below is the vault working folder, `C:\_Lake_Shore_E_Vault` or `_Lake_Shore_E_Vault` at the root of another fixed or network drive (see section 1).
 
@@ -13,6 +13,9 @@ Every file the plugin reads or writes, where it lives, what is in it, and what b
 | 5 | WD_M library block `wd_m.dwg` | `<vault>\CAD Standards\AutoCAD\ECAD Standards\Symbol Library\NFPA\`, else under `Documents\Acade 2026\AeData\en-US\Libs\` | read only |
 | 6 | Job folder and its contents | `<Jobs root>\<product line folder>\<level choices>\<job>_<customer>\` | created per run; removed on rollback |
 | 7 | `Logs\ProjectReport_<stamp>.txt` | `%APPDATA%\LSE\AutoCADElectricalProjectTools\Logs\` | written on failure only |
+| 8 | Vault client DLL `Autodesk.Connectivity.WebServices.dll` | newest `C:\Program Files\Autodesk\Vault*\Explorer\` | metadata read only, by `LSEPROJECTDIAG` (version and target .NET); never loaded |
+
+No Access database, no SQL server and no Vault server is read or written. The Vault add-in's login, if AutoCAD has one, is only reported. Files under Vault control are recognised by their read-only attribute (Vault sets it on files that are not checked out).
 
 ## 1. settings.json
 
@@ -42,7 +45,9 @@ Per user. Written as indented JSON through a `.tmp` file and an atomic move. Del
 | `ActivateProjectLisp` | `(if (boundp 'c:wd_makeproj_current) (progn (c:wd_makeproj_current "{WDP}") (princ "...")) (princ "..."))` | Sent to the command line with `{WDP}` replaced by the forward-slash path of the new `.wdp`. |
 | `RecentProjects` | empty list | Full paths of the last 25 projects created, newest first. Stored only; no screen reads it yet. |
 
-The wizard reads the eight switch defaults into its check boxes but does not write them back; only `LSEPROJECTSETTINGS` changes them.
+The wizard reads the eight switch defaults into its check boxes but does not write them back; only `LSEPROJECTSETTINGS` changes them. The wizard's ninth box, Allow an existing, non-empty project folder (`ProjectRequest.AllowExistingFolder`), has no setting and always starts off.
+
+A successful create saves the settings object the wizard loaded when it opened (to update `RecentProjects`). If `LSEPROJECTSETTINGS` was saved from another window while the wizard was open, those changes are overwritten.
 
 ## 2. LseProjectTemplates.json
 
@@ -212,11 +217,11 @@ Created at `<ProjectsRootFolder>\<product line folder>\<level choices>\<job fold
 | `<job>_wdtitle.wdl` | `WdpFileService.CopySidecar`, else `WriteLabels` | Copied: the template's file. Generated: `LINE1=PROJECT NAME` .. `LINE8=DWG SCALE`, `LINE9=FUTURE USE` .. `LINE14=FUTURE USE`, no spaces, UTF-8 without BOM, CRLF (the same lines as the template's). Read by the Project Manager for the Descriptions dialog labels. |
 | `<job>.aepx` | `WdpFileService.WriteConfiguration` | XML, UTF-8 without BOM: `<ProjectConfiguration Version="1.0">`, `<Project ProjectPath="<job folder>" LocalGUID="<new GUID>" EmxFilePath="" EmxGUID=""/>`, `<Drawings NextID="n+1">` with one `<Drawing FilePath="001096-1-E001.DWG" FileID="i"/>` per sheet (relative path, upper-cased, IDs 1..n). Same shape as the template's `.aepx`. Whether AutoCAD Electrical accepts a pre-written one is unverified; it rewrites the file itself. |
 | `<job>-Ennn.dwg` per row | `DrawingFactoryService.Create` | DWG in the current version, from `DRAWING-#.dwg` (or the row's template, `STOCKCODE-E001.dwg` for the cover), with title block and WD_M attributes set and summary info filled. All drawings are flat in this folder; the PM folder column is a Project Manager tree folder, not a disk folder. |
-| `LSE_ProjectReport.txt` | `ProjectTransactionService.Execute` | The line-per-step log of the successful run. |
+| `LSE_ProjectReport.txt` | `ProjectTransactionService.Execute` | The line-per-step log of the successful run, ending with the `Vault:` check-in reminder when the folder is inside the vault working folder. In a reused folder an existing writable report is overwritten. |
 
 Write order: drawings, `.wdp`, `.wdl`, `.wdt`, `.aepx`, report. Every `.wdt`, `.wdl` and `.aepx` step is skipped when its switch is off.
 
-On rollback every file above that was created (copied sidecars included) is deleted, and the folder is removed if the run created it and it is empty. Product line folders created on the way are left in place. `LSE_ProjectReport.txt` is written only on success, so it never needs removal. The new job folder is created in the vault working folder only; checking it into the vault is a manual step.
+On rollback every file above that was created (copied sidecars included) is deleted, and the folder is removed if the run created it and it is empty. Product line folders created on the way are left in place. `LSE_ProjectReport.txt` is written only after `Status: SUCCESS` and is not in the rollback list; it is left behind (and keeps the folder from being removed) only in the rare case that saving `settings.json` fails right after it. The new job folder is created in the vault working folder only; the plugin never checks in: the success report ends with the files and folder to add to Vault. An existing folder holding any of the three sidecars, or a read-only `LSE_ProjectReport.txt`, is refused before anything is written.
 
 ## 7. Failure logs
 

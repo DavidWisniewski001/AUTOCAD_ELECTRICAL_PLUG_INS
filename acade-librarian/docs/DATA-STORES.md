@@ -1,6 +1,6 @@
 # Data stores: LSE Librarian
 
-Maintained by DCW. Last reviewed 2026-11-12.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 Every file, database, lock and generated artefact the plugin reads or writes. Paths below use the LSE defaults from `Locations.txt`; all of them are settings.
 
@@ -15,12 +15,13 @@ Every file, database, lock and generated artefact the plugin reads or writes. Pa
 | User circuits | `...\User Circuits\<group>` | audit, clash check | one new `.dwg` per filed circuit |
 | Icon menus | `...\dat MENU\ACE_NFPA_MENU.DAT`, `...\dat MENU\ACE_PANEL_MENU_NFPA.DAT` | wizard page list, audit, diagnostics | one appended entry (and optionally one page) per run |
 | Icon images | `...\dat MENU\IMAGES\` (the folder on disk is `Images`; Windows is case-insensitive) | wizard "existing image" list, audit | one `<Name>.png` per run unless an existing image is reused |
-| Footprint lookup | `...\E-CAD .mbd ACCESS FILES\AeData\en-US\Catalogs\footprint_lookup.mdb` | audit, settings test | one row per registered footprint |
-| Catalog | `...\Catalogs\default_cat.mdb` | catalog record dialog (family tables, columns, MANUFACTURER values, issued part numbers), diagnostics, settings test, snapshot family hints | one row per catalog record added (wizard option or `LSECATALOGADD`) |
+| Footprint lookup | `...\E-CAD .mbd ACCESS FILES\AeData\en-US\Catalogs\footprint_lookup.mdb` | audit, settings test, `LSEFOOTPRINTMAP` | one row per registered footprint (wizard), per mapped part (`LSEFOOTPRINTMAP`, the optional box in `LSECATALOGADD`) |
+| Catalog | `...\Catalogs\default_cat.mdb` | catalog record dialog (family tables, columns, MANUFACTURER values, issued part numbers), `LSEFOOTPRINTMAP`, audit, diagnostics, settings test, snapshot family hints | one row per catalog record added (wizard option or `LSECATALOGADD`); WDBLKNAM of existing rows (Set symbol in `LSEFOOTPRINTMAP`) |
 | Parts catalog workbook | `LSE ELECTRICAL PARTS CATALOG MANAGER.xlsx` (discovered near the catalog, in the ECAD Standards root or `Documents\AutoCAD_Electrical_2026`) | catalog record dialog, wizard validation, diagnostics, settings test, snapshot | never |
 | `LseNamingStandard.json` | next to the DLL, or the path named in settings | fallback when the workbook is missing | "Save naming snapshot (JSON)" in the settings form |
-| Backups | `%APPDATA%\LSE\AutoCADElectricalLibrarian\Backups\<yyyyMMdd_HHmmss>\` | recovery by hand | every run |
-| Catalog backups | `<catalog folder>\LSE_Catalog_Backups\<yyyyMMdd_HHmmss>\` (or `CatalogBackupFolder`) | recovery by hand | every catalog record add |
+| Backups | `%APPDATA%\LSE\AutoCADElectricalLibrarian\Backups\<yyyyMMdd_HHmmss>\`, and `...\<yyyyMMdd_HHmmss>_footprintmap\` for footprint mapping | recovery by hand | every library run and every mapping run that writes |
+| Catalog backups | `<catalog folder>\LSE_Catalog_Backups\<yyyyMMdd_HHmmss>\` (or `CatalogBackupFolder`), and `...\<yyyyMMdd_HHmmss>_symbollink\` for Set symbol | recovery by hand | every catalog record add and every symbol link that writes |
+| Read-only attribute (Vault check-out state) | the attribute of each file a run will change | before every write (`VaultProbe.RequireWritable`), diagnostics | never; the Librarian does not clear it or check files out |
 | Lock | `<dat MENU>\LSE_Library.lock` | | held for the duration of a run |
 | Issuance lock | `<catalog folder>\LSE_PartNumber.lock` | | held while a part number is issued |
 | Temp exports | `%TEMP%\LSE_Librarian\<block>_<time>.dwg` | inspection, icon preview | wizard; deleted on close |
@@ -146,6 +147,17 @@ Access database, one table per `MANUFACTURER` value. Columns used: `CATALOG` (60
 
 ## 6. Backups and the report
 
+Vault: before any backup or lock, `VaultProbe.RequireWritable` refuses the run when a file it will change is read-only (not checked out in Vault) and lists every such file. After success `VaultProbe.CheckinReminder` appends the touched files inside the Vault working folder to the log. The Librarian never checks files in or out.
+
+| Run | Files checked for read-only before writing | Files listed for check-in after success |
+|---|---|---|
+| `LSELIBRARIAN` | the icon menu `.DAT`; `footprint_lookup.mdb` when registering; `default_cat.mdb` with a catalog record; the drawing when registering in place | the menu, the new or in-place drawing, a new PNG, the lookup, the catalog |
+| `LSECATALOGADD` | `default_cat.mdb`; `footprint_lookup.mdb` only later, inside the optional mapping (after the catalog row is written) | `default_cat.mdb`; the lookup when mapped |
+| `LSEFOOTPRINTMAP` Map selected parts | `footprint_lookup.mdb` | `footprint_lookup.mdb` |
+| `LSEFOOTPRINTMAP` Set symbol | `default_cat.mdb` | `default_cat.mdb` |
+
+"In the Vault working folder" means the full path contains `\_Lake_Shore_E_Vault\` or starts with `C:\_Lake_Shore_E_Vault\`. New files and folders are never checked (they do not exist yet); a target folder without write permission fails during the run with "Access to the path is denied", and the run is rolled back.
+
 Every run creates `<BackupFolder>\<yyyyMMdd_HHmmss>\` holding the `.DAT` that is about to change, `footprint_lookup.mdb` when registering, and `LibraryReport.txt`, the line-per-step log. On failure the log ends with `ERROR:`, the rollback outcomes and a `Detail:` line with the exception. The library drawing and icon image are not backed up: they are new files, and rollback deletes them.
 
 ## 7. Lock file
@@ -226,7 +238,7 @@ The AutoCAD Electrical catalog: one table per family (`FU`, `CB`, `PB`, ...), th
 | Duplicate check | `MANUFACTURER` + `CATALOG` in the chosen family table. |
 | The inserted row | Only columns the table has, only when non-empty: `CATALOG` (the manufacturer part number, 60), `MANUFACTURER` (24), `DESCRIPTION` (150), `TYPE`, `RATING`, `VOLTAGE`, the part column = the LSE part number, `USER2` (the purchase description by default), `USER3`, `TEXTVALUE`, `WEBLINK`, `WDBLKNAM` (60). Sizes are the `DefinedSize` of each column, checked before the insert. A table without the part column is refused. |
 
-The Librarian never updates or deletes a catalog row.
+The Librarian never deletes a catalog row. The only update is Set symbol in `LSEFOOTPRINTMAP` (`CatalogTransactionService.SetSymbols`), which changes WDBLKNAM and nothing else on rows that match exactly once (section 5). (Corrected 2026-11-13: this line used to say the Librarian never updates a row.)
 
 ### 10.1 Catalog backups and the report
 

@@ -1,6 +1,6 @@
 # LSE guard rails for the guardian agents
 
-Maintained by DCW. Last reviewed 2026-11-11.
+Maintained by DCW. Last reviewed 2026-11-12.
 
 Each plugin has one guardian agent that is the only agent allowed to change it. The agent prompt carries the plugin's invariants (transaction order, file formats, style, what must be asked before doing). This folder carries the part that is enforced by the harness rather than by the prompt: a PreToolUse hook that blocks a tool call before it runs.
 
@@ -13,9 +13,10 @@ Each plugin has one guardian agent that is the only agent allowed to change it. 
 | `lse-ecad-doctor-guardian` | `acade-project-doctor\` | `config\standard\`, `bundle\` |
 | `lse-env-guardian` | `acade-project-env\` | `bundle\` |
 | `lse-librarian-guardian` | `acade-librarian\` | `bundle\` |
+| `lse-tofrom-guardian` | `acade-wire-tofrom\` | `bundle\` |
 | `lse-footprint-tools-guardian` | `inventor-addin\` | `LSE.Inventor.FootprintTools.addin` |
 
-All six are in `..\` (this `agents\` folder, the source of truth) and installed in `..\..\.claude\agents\` so Claude Code picks them up in this project. Edit the copy in `agents\` and copy it over; do not let the two drift.
+All seven are in `..\` (this `agents\` folder, the source of truth) and installed in `..\..\.claude\agents\` so Claude Code picks them up in this project. Edit the copy in `agents\` and copy it over; do not let the two drift.
 
 The four older agents (`lse-csharp-dev`, `lse-code-reviewer`, `lse-catalog-data`, `lse-documenter`) are helpers the guardians read as rulebooks. They have no hook and no territory, so prefer a guardian for any change to a plugin.
 
@@ -58,7 +59,7 @@ What the hook does not do: it does not inspect Python or other interpreters' fil
 python -I agents/guardrails/tests/run-tests.py
 ```
 
-Runs 19 cases against the `acade-librarian` territory (with `config` read-only) and prints PASS or FAIL per case. All 19 passed on 2026-11-11 (the two newest check that `acade-project-env\` is fenced off from the other guardians). Add a case whenever a rule is added or a false block is found.
+Runs 21 cases against the `acade-librarian` territory (with `config` read-only) and prints PASS or FAIL per case. All 21 passed on 2026-11-12 (the two newest check that `acade-wire-tofrom\` is fenced off from the other guardians, as the two before them do for `acade-project-env\`). Add a case whenever a rule is added or a false block is found.
 
 ## Adding a guardian
 

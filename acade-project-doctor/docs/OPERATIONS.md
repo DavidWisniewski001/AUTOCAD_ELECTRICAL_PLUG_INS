@@ -1,6 +1,6 @@
 # Operations guide: LSE_Doctor
 
-Maintained by DCW. Last reviewed 2026-11-10.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 How to install the doctor, examine a project, repair it, read the log, understand every message and recover by hand. Written for the engineer who uses the tool. Nothing in this guide has been run inside AutoCAD Electrical yet; see the Verify on a workstation notes and the [developer guide](DEVELOPER-GUIDE.md#7-first-build-verification-checklist) before trusting it on a live job.
 
@@ -26,7 +26,13 @@ Verify on a workstation: bundle autoload and `LoadOnCommandInvocation` behaviour
 | `LSEDOCTOR` | Examine and repair one project. |
 | `LSEDOCTORSCAN` | Triage every project under a folder and batch-apply recommended repairs. |
 | `LSEDOCTORSETTINGS` | Change settings. |
-| `LSEDOCTORDIAG` | See what the plugin resolved on this machine. |
+| `LSEDOCTORDIAG` | See what the plugin resolved on this machine, and which build is loaded. |
+| `LSEDOCTORHELP` | Read the whole user guide (the Help texts of every window plus the finding catalogue). |
+
+Every window also has a **Help** button for that window and a tooltip on every control. Every window title ends with
+the build tag, for example `[2026-11-12-r7]`. When you install a new build, close AutoCAD Electrical completely first
+(a loaded DLL cannot be replaced), copy the new files into the bundle's `Contents\` folder, start it again and check the
+title bar shows the new tag; an older tag means the previous DLL is still loaded.
 
 ## 3. Examine and repair one project (LSEDOCTOR)
 
@@ -35,13 +41,13 @@ Always work on a copy of a project the first few times.
 1. Type `LSEDOCTOR`. The doctor asks AutoCAD Electrical for the active project. If it gets none it looks for a single `.wdp` in the active drawing's folder. If a project is found, the dialog opens and examines it at once. Otherwise the status line says "No active project was detected. Browse to a project .wdp and press Examine."
 2. The `Standard` line shows which template is in use, with counts. Red text means the bundled copy is in use (the Vault template was not reachable) or the standard could not be loaded.
 3. Pick a project: type or choose a path in the box (recent projects are listed), press Browse, or press Active project.
-4. Decide on `Check every drawing: WD_M block, LSE title block and wire layers against the template drawing (opens each DWG; slower)`. On: the doctor opens the template drawing `DRAWING-#.dwg` once and then every project DWG (read only, in memory), and compares each drawing's `WD_M` block, title block and wire layers with the template drawing. Off: only the text files are checked and the drawing list is checked for files missing on disk. The initial state comes from settings. The wire-layer part needs the Vault template folder: with the bundled standard there is no template drawing and the Checks section of the report says `Wire layers: no template drawing next to the standard .wdp; check skipped`.
+4. Decide on `Check every drawing: WD_M block, LSE title block and wire layers against the template drawing (opens each DWG; slower)`. The box is read only when Examine runs, so after changing it press Examine again. On: the doctor opens the template drawing `DRAWING-#.dwg` once and then every project DWG (read only, in memory), and compares each drawing's `WD_M` block, title block and wire layers with the template drawing. Off: only the text files are checked and the drawing list is checked for files missing on disk. The initial state comes from the setting "Check drawing contents by default"; what you choose here is not saved. The wire-layer part needs the Vault template folder: with the bundled standard there is no template drawing and the Checks section of the report says `Wire layers: no template drawing next to the standard .wdp; check skipped`.
 5. Press Examine. The status line shows "Healthy: the project matches the LSE standard." or "N error(s), M warning(s). K recommended repair(s) are ticked; review them and press Repair ticked."
 6. Read the grid (section 5). Tooltips on the Item, Project has, Standard and Repair cells give the full text and the note.
-7. Change the ticks. Buttons: Tick recommended, Tick all (every finding that has a repair), Untick all, and the "Show informational rows" check box (on by default; hides or shows Info rows; hidden rows keep their tick state).
+7. Change the ticks: click a Fix box, or select a row and press the space bar. Buttons: Tick recommended (back to the default ticks), Tick all (every finding that has a repair, including protected lines and differences whose enforcement is off), Untick all, and the "Show informational rows" check box (on by default; hides or shows Info rows at once; hidden rows keep their tick state and a ticked hidden row is still repaired).
 8. Optional: press Report... to see the full text report; Save as... in that window writes it to a file.
 9. Press Repair ticked. A confirmation lists the number of repairs, the project and the backup folder. If the project is the active one, it also says the project will be reloaded when the doctor closes.
-10. After the repair the repair log opens (unless switched off in settings). Read the last `Status:` line. The project is examined again automatically.
+10. After the repair the repair log opens (unless switched off in settings). Read the `Status:` line and the Vault check-in list after it. The project is examined again automatically (with the current state of "Check every drawing"), so the grid shows what is left and the ticks are back to the recommended set. If the repair was refused (read-only file) the window is titled "LSE_Doctor - repair refused"; if it failed after the backup it is titled "LSE_Doctor - repair FAILED (rolled back)".
 11. Close. If the active project was repaired and `Reload the active project after it is repaired` is on, the doctor queues the reload LISP. Check the command line for the "LSE_Doctor: reloaded project" message.
 
 If the reload message says the function is not loaded, open the project again from the Project Manager by hand. Otherwise AutoCAD Electrical may later overwrite the repaired `.wdp` with settings it still holds in memory (README statement; not verified).
@@ -49,11 +55,11 @@ If the reload message says the function is not loaded, open the project again fr
 ## 4. Scan a folder (LSEDOCTORSCAN)
 
 1. Type `LSEDOCTORSCAN`. The folder box starts with `Projects root` from settings.
-2. Pick a folder with Browse or type one. Tick or untick `Check drawing contents too (opens every DWG; much slower)`.
+2. Pick a folder with Browse or type one. Tick or untick `Check drawing contents too (opens every DWG; much slower)`. It starts from the setting "Folder scan checks drawing contents too" and, unlike the `LSEDOCTOR` box, is saved back to that setting when you press Scan. It is also used when a row is re-examined (after Open in Doctor... or a batch repair).
 3. Press Scan. The doctor walks the folder tree, skipping the template project itself, folders named like the backup folder and folders named `_V`. It examines each `.wdp` found, one after another, with the status line showing progress. There is no cancel button. The folder and the drawing-check choice are saved to settings.
-4. Each row shows the project, its folder, its status and the number of recommended repairs. Colours: green healthy, yellow warnings only, red has errors. A project that could not be examined shows `ERROR: <message>` and cannot be ticked. Projects with recommended repairs start ticked.
-5. Double-click a row, or select it and press Open in Doctor..., to review and repair that project in the full dialog. The row is refreshed on return.
-6. Press Repair ticked (recommended fixes). A confirmation lists the number of projects. For each ticked project the doctor selects exactly its recommended findings and repairs it, each with its own backup and rollback. One failure does not stop the others. A report window lists every project's log and each failure.
+4. Each row shows the project, its folder, its status and the number of recommended repairs. Colours: green healthy, yellow warnings only, red has errors. A project that could not be examined shows `ERROR: <message>` and cannot be ticked. Projects with recommended repairs start ticked and are the only rows with a box; the others show `ok`, `review` or `error`. Click a box (or press the space bar) to tick or untick it; Tick all needing repair ticks every row that has a box, Untick all clears them.
+5. Double-click a row (any column except Fix), or select it and press Open in Doctor..., to review and repair that project in the full dialog. The row is re-examined on return and its box comes back unticked.
+6. Press Repair ticked (recommended fixes). A confirmation lists the number of projects. For each ticked project the doctor selects exactly its recommended findings and repairs it, each with its own backup and rollback. One failure does not stop the others. A report window always opens (the "Show the repair report" setting does not apply here) and lists every project's log. A project that failed is headed `==== <wdp> FAILED (rolled back)`; this heading is also used when the repair was refused because a file is read-only, in which case nothing was changed. Every repaired row is re-examined and left unticked.
 7. If the active project was among those repaired it is reloaded when the scan window closes.
 
 Batch repair never touches unticked findings (blank descriptions, drawing removals, `.aepx` creation, protected lines, enforcement-off differences). Use Open in Doctor... for those. With `Check drawing contents too` on, the recommended set includes the drawing repairs: inserting `WD_M`, setting `WD_M` wire-layer values, creating and repairing wire layers and purging unused non-standard wire layers (with the default rules). Every such drawing is rewritten and backed up. Run the batch on copies first.
@@ -62,7 +68,7 @@ Batch repair never touches unticked findings (blank descriptions, drawing remova
 
 | Column | Meaning |
 |---|---|
-| Fix | Tick to apply. Disabled for report-only rows. |
+| Fix | Click the box to tick or untick the repair (or select the row and press the space bar). Report-only rows show the word `note` instead of a box; clicking one explains on the status line why there is nothing to tick. |
 | Severity | Error (red row), Warning (yellow row), Info (white row). |
 | Category | See the catalogue below. |
 | Item | The line, attribute or file, such as `*[2] QUOTE#` or `+[1] Schematic symbol library paths`. For wire-layer rows: the drawing path as listed in the `.wdp`, a colon, then the `WD_M` attribute tag or the layer name, such as `STOCKCODE-E001.dwg : WIRELAYS` or `STOCKCODE-E001.dwg : _WIRES`. |
@@ -70,7 +76,11 @@ Batch repair never touches unticked findings (blank descriptions, drawing remova
 | Standard | The template value, the template layer's summary, `(not in the standard)` or `(not in the template)`. |
 | Repair | Add line, Replace value, Create file, Insert WD_M, Remove from project, Set WD_M value, Create layer from template, Repair layer, Purge layer, or (report only). |
 
-The summary line under the grid reads: status, number of findings, number recommended, number ticked. Repair ticked is enabled only when at least one repair is ticked.
+The summary line under the grid reads: status, number of findings, number recommended, number ticked. Repair ticked is enabled only when at least one repair is ticked. The status line at the bottom says what happened after each action (ticked, unticked, why a row is a note, how many drawings were skipped because they are open in AutoCAD) and what to do next. Press **Help** for the guide to the window.
+
+Rows that are `note`: a line, mapping or label the project has but the template does not; a drawing open in AutoCAD or unreadable; a drawing without the LSE title block; a non-standard wire layer still in use; a `WD_M` attribute an older block lacks; a project that lists no drawings. They are grey, have no tick box and are never repaired. "Show informational rows" hides the ones whose Severity is Info; the Warning notes stay visible.
+
+In the scan grid the Fix column shows a box only for projects with recommended repairs; otherwise it shows `ok` (healthy), `review` (findings need a decision in the Doctor; double-click the row) or `error` (could not be examined; see Status).
 
 ### Findings catalogue
 
@@ -119,7 +129,7 @@ Important: the Healthy status ignores Info rows. A project with drawings that we
 
 ## 6. Settings (LSEDOCTORSETTINGS)
 
-Per user. Saved to `%APPDATA%\LSE\LSE_Doctor\settings.json` ([DATA-STORES.md](DATA-STORES.md#2-settingsjson)). Browse buttons exist for the first three rows.
+Per user. Saved to `%APPDATA%\LSE\LSE_Doctor\settings.json` ([DATA-STORES.md](DATA-STORES.md#2-settingsjson)). Browse buttons exist for the first three rows. Every row has a tooltip and the Help button explains every field. Saved values take effect the next time `LSEDOCTOR` or `LSEDOCTORSCAN` opens; a window that is already open keeps the settings it read.
 
 | Field | Meaning |
 |---|---|
@@ -130,13 +140,13 @@ Per user. Saved to `%APPDATA%\LSE\LSE_Doctor\settings.json` ([DATA-STORES.md](DA
 | Backups to keep per project | Whole number, 1 or more. Default 10. |
 | Active project LISP (sets USERS1) | Expression that stores the active `.wdp` path in `USERS1`. |
 | Reload project LISP ({WDP}) | Expression run after the active project is repaired. `{WDP}` becomes the project path. |
-| Check drawing contents by default (LSEDOCTOR) | Initial state of that check box. |
-| Recommend inserting a missing WD_M block from the template drawing | Makes `Insert WD_M` recommended. |
-| Folder scan checks drawing contents too (slow) | Initial state in the scan. |
-| Reload the active project after it is repaired | Sends the reload LISP. |
-| Show the repair report after each repair | Opens the log window after `LSEDOCTOR` repairs. The batch scan always shows its report. |
+| Check drawing contents by default (LSEDOCTOR) | Only the initial state of "Check every drawing" when `LSEDOCTOR` opens (also when the Doctor is opened from the scan). It has no other effect. |
+| Recommend inserting a missing WD_M block from the template drawing | When ticked, a drawing without `WD_M` gets a pre-ticked Insert WD_M row (in `LSEDOCTOR` and in the scan's recommended set). When unticked the row still appears and can be ticked by hand. Has an effect only with drawing checks on and a template drawing available (Vault template reachable). |
+| Folder scan checks drawing contents too (slow) | Initial state of the scan's "Check drawing contents too". Overwritten by the scan each time you press Scan. |
+| Reload the active project after it is repaired | After a successful repair of the project that was active when the command started, the reload LISP is queued when the window closes. Has no effect for other projects, or when no active project was detected. |
+| Show the repair report after each repair | Opens the log window after an `LSEDOCTOR` repair. The batch scan always shows its report regardless. Errors are always shown. |
 
-Save closes the dialog; Diagnostics opens the same report as `LSEDOCTORDIAG`. Validation errors appear as a message box titled "LSE_Doctor Settings".
+Save validates, writes the file and closes the dialog. There is no Cancel button: close the window with its title-bar X to discard changes (Esc does nothing). Diagnostics opens the same report as `LSEDOCTORDIAG`; Help opens the settings guide. Validation errors appear as a message box titled "LSE_Doctor Settings".
 
 ## 7. What a successful run leaves behind
 
@@ -149,6 +159,8 @@ Save closes the dialog; Diagnostics opens the same report as `LSEDOCTORDIAG`. Va
 | History | project added to the recent list |
 
 The backup folder is inside the project folder. Exclude it from Vault check-in if you do not want it versioned.
+
+After a successful repair the run log lists the touched and created files in the Vault working folder that need checking in. The Doctor never checks files in or out itself. If `LSEDOCTORDIAG` says the template is missing and its path is in the working folder, Get Latest Version on the template folder in Vault Explorer.
 
 ## 8. Reading the log
 
@@ -186,6 +198,7 @@ Status: SUCCESS (6 repair(s) applied, all verified)
 | `Created <path> [from <path>]` | A new file. |
 | `Repairing drawing <file> (n repair(s))` | One per rewritten DWG, followed by one indented line per step in the order applied: `WD_M inserted into model space with N attribute value(s) from <template file>` (N attributes received the template's text), `Created layer <name> from the template (...)` or `Layer <name> already exists; left as it is`, `Repaired layer <name>: color, linetype, lineweight, plot flag and wire-type data set from the template` (with `(linetype <name> could not be copied)` when that part failed), `WD_M <tag>: "<old>" -> "<new>"`, `Purged layer <name>` or `Layer <name> is already gone`, then `Saved <path>`. |
 | `Skipped: ...` | A ticked repair that no longer applies (file already exists, drawing entry gone, file to edit does not exist). |
+| `Vault: these N item(s) are in the Vault working folder and are not checked in yet. ...` | Followed by one indented path per edited or created file inside `C:\_Lake_Shore_E_Vault\`. Check them in (new files: Add to Vault). Absent when nothing touched is in the working folder. |
 | `Old backup removed: <folder>` | Pruning. |
 | `UNRESOLVED: <category> / <item>` | After the repair the same finding is still reported. |
 | `Status: SUCCESS (...)` | Every ticked repair verified. |
@@ -216,10 +229,14 @@ A drawing counts as "pass" only when it has `WD_M`, a title block and no wire-la
 | pathListMode must be "replace" or "merge" in <file> | Bad rules value. | Fix the JSON. |
 | The doctor rules JSON is empty: <file> | File parsed to nothing. | Restore the file. |
 | Nothing is ticked. Tick the repairs to apply, then press Repair. | Repair run with no selection. | Tick something. |
-| Read-only file: <file>. If the project is under Vault control check it out first; otherwise clear the read-only attribute. Nothing was changed. | A file to be edited is read-only. | Check the project out of Vault, then examine and repair again. |
+| This file is read-only: <path>. / These files are read-only: <paths>. They are in the Vault working folder: check them out in Vault first (the Vault tab in AutoCAD / Inventor, or Vault Explorer > Check Out), then run this again. Nothing was changed. (Outside the working folder the middle sentence says to check them out or clear the read-only attribute.) | One or more files to be edited are read-only (usually not checked out of Vault). Shown in a window titled "LSE_Doctor - repair refused". | Check every listed file out (Vault tab in AutoCAD, or Vault Explorer > Check Out), then examine and repair again. |
 | Repair failed and was rolled back. (status line) | Any exception after the backup was taken; the originals were restored. | Read the log window. |
 | Repair refused before any change was made. (status line) | The two checks above (nothing ticked, or a read-only file); nothing was changed. | Tick a repair, or check the file out of Vault / clear the read-only attribute, then repair again. |
-| Not inspected while open. Close the drawing and examine again. | The DWG is open in the editor. | Close it and examine again. |
+| Not inspected while open in AutoCAD. The doctor never writes to an open drawing. Close it (the project stays active) and press Examine again. | The DWG is open in the editor. | Close it and examine again. |
+| N drawing(s) are open in AutoCAD and were not checked; close them and press Examine again. (status line) | Drawings of the active project are open. | Close them, Examine again. |
+| Information only, nothing to tick: <item>. <note> (status line) | You clicked a `note` row. | Read the note; nothing to repair on that row. |
+| Nothing to tick: this project is healthy. / ... no repair is recommended automatically ... / ... could not be examined. (scan status line) | You clicked an `ok`, `review` or `error` cell in the scan grid. | Double-click the row to review it in the Doctor, or read the Status column. |
+| Ticked: <item> (<repair>). Press Repair ticked when you have ticked everything you want. / Unticked: <item>. (status line) | A Fix box was clicked. | Carry on. |
 | The drawing is open in the editor. Close it first: <path> | A drawing repair on an open drawing. The run is rolled back. | Close it, examine and repair again. |
 | Drawing was not found. / Template drawing was not found. | The DWG or `DRAWING-#.dwg` disappeared between examine and repair. | Restore it; examine again. |
 | The template drawing has no WD_M block definition: <path> / The WD_M block definition could not be copied into the drawing. | Template drawing problem. | Check the Vault template folder; use Drawing Properties by hand. |

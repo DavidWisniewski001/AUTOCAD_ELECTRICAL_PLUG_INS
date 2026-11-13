@@ -1,6 +1,6 @@
 # Code reference: LSE Footprint Tools
 
-Maintained by DCW. Last reviewed 2026-11-08.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 One section per source file, in dependency order (lowest first). Every public member is listed with what it does, what it throws and what it touches on disk. Read [ARCHITECTURE.md](ARCHITECTURE.md) first for how these pieces fit together.
 
@@ -132,7 +132,9 @@ Wraps `app.MainFrameHWND` so WinForms dialogs can be owned by Inventor's main wi
 
 `Execute(AppSettings s, NamingStandard n, PartNumberRequest pn, CatalogAddRequest q, FootprintGeometry g, string footprintDescription)` returns `FootprintResult`.
 
-The one mutating code path. The ordered steps, the rollback and the report file are tabulated in [ARCHITECTURE.md](ARCHITECTURE.md) section 5.4. Pre-checks before any file is touched: `PartNumberService.Validate`; `TableName`, `Catalog`, `Manufacturer` non-empty; `Manufacturer` at most 24, `Catalog` at most 60, `Description` at most 150 characters; both MDB files exist; `FootprintLibraryFolder` set. The backup folder is created and the lock taken before the backups are copied; the `try` block that triggers rollback begins at the part-number scan. On failure the method throws `InvalidOperationException` whose message is the **entire log** (including rollback outcomes), with the original exception as `InnerException`.
+The one mutating code path. The ordered steps, the rollback and the report file are tabulated in [ARCHITECTURE.md](ARCHITECTURE.md) section 5.4. Pre-checks before any file is touched: `PartNumberService.Validate`; `TableName`, `Catalog`, `Manufacturer` non-empty; `Manufacturer` at most 24, `Catalog` at most 60, `Description` at most 150 characters; both MDB files exist; `FootprintLibraryFolder` set. The backup folder is created and the lock taken before the backups are copied. `VaultProbe.RequireWritable` then refuses read-only files (`footprint_lookup.mdb` always; `default_cat.mdb` too when Vault is off, because with Vault on the checkout clears the flag). That check is outside the `try`, so a refusal throws its own message without rollback or report. The `try` block that triggers rollback begins at the part-number scan. On failure the method throws `InvalidOperationException` whose message is the **entire log** (including rollback outcomes), with the original exception as `InnerException`. `VaultCatalogService.EndSession()` runs in `finally`.
+
+The DXF attribute defaults are built as a dictionary initialiser with keys `MFG`, `CAT` and `s.LsePartAttribute`. If the LSE part attribute setting is `MFG` or `CAT`, the initialiser throws a duplicate-key `ArgumentException` and the run rolls back. Settings does not prevent those two values.
 
 `footprintDescription` is what goes into the `DESCRIPTION` column of `footprint_lookup.mdb`; the wizard passes the description **without** the appended MPN.
 
@@ -144,16 +146,40 @@ The one mutating code path. The ordered steps, the rollback and the report file 
 | `Acquire(catalogPath, log)` | Opens the lock file with `FileShare.None` and `FileOptions.DeleteOnClose`, writes `user@machine timestamp` into it, logs "Issuance lock: PASS". Retries 40 x 250 ms on `IOException`, then throws "Another workstation is issuing a part number right now...". |
 | `Dispose()` | Closes the stream, which deletes the file. |
 
-### `static class VaultCatalogService`
+## src/VaultCatalogService.cs
 
-Reflection and `dynamic` over three Vault SDK assemblies loaded from `VaultExplorerPath`. Shared shape with the sister AutoCAD Electrical plugin.
+`static class VaultCatalogService`. Rewritten 2026-11-12 for Vault 2025/2026. Nothing from the Vault SDK is referenced at compile time: every call is reflection or `dynamic`, and `out` parameters go through `MethodInfo.Invoke`. Verified against a stub SDK (`tests/VaultFakeTest`, 27 checks), never against a real Vault. Same text as `../acade-catalog-tools/VaultCatalogService.cs` apart from namespace and `AppName`.
 
 | Member | Behaviour |
 |---|---|
-| `Connect` (private) | Loads `Autodesk.Connectivity.WebServices.dll`, `Autodesk.DataManagement.Client.Framework.Vault.dll`, `Autodesk.DataManagement.Client.Framework.dll`; `WebServiceManager.Initialize`; `GetServerIdentities("http://<VaultServer>")`; `WinAuthCredentials(identity, VaultName, false, null)`; finds the catalog by `FindLatestFilesByPaths([CatalogVaultPath])`. Throws when the folder, identity or file is missing. |
-| `Checkout(s)` | Refuses if `CkOutUserId > 0` ("Catalog is already checked out."). `DocumentService.CheckoutFile(file.Id, <first CheckoutFileOptions>, machineName, CatalogPath, "LSE Footprint Tools", null)`, then clears the read-only attribute on the local file. |
-| `Checkin(s, comment)` | Builds a VDF `Connection` with `WindowsAuthentication`, a `FileIteration` and a `FilePathAbsolute`, then `FileManager.CheckinFile(it, comment, false, null, null, false, null, FileClassification.None, false, path)`. |
-| `UndoCheckout(s)` | Finds any `DocumentService` method whose name contains `UndoCheckout` with 1 or 2 parameters and calls it with `MasterId` (and machine name). Throws `MissingMethodException` if none works. |
+| `AppName` | `"LSE Footprint Tools"`; the comment passed to the DocumentService checkout fallback. |
+| `Enabled(s)` | True when `CatalogVaultPath` is not blank. Every Vault step is skipped when false. |
+| `NormalizeVaultPath(p)` | Turns `\` into `/` and forces a `$/` prefix: `x/y`, `/x/y`, `$x/y` and `$\x\y` all become `$/x/y`. |
+| `Checkout(s, log)` | `Begin` a session, `FindFile` the catalog, read its version, size and date into the log. Throws "The catalog is checked out in Vault by <user> (machine <m>). Wait until it is checked in... Nothing was changed." when someone else holds it. If the size or date (3 s tolerance, local or UTC) of the working copy differs from Vault, the latest version is downloaded over it. Already checked out to you: that checkout is reused (download only if stale). Otherwise `FileManager.AcquireFiles` with Checkout (+Download), children, parents and attachments off; if that fails and the copy is current, falls back to `DocumentService.CheckoutFile` (no download); if it fails and the copy is stale, refuses with "do Get Latest Version". Verifies Vault now shows the file checked out, clears the read-only flag, and keeps the session for `Checkin`. |
+| `Checkin(s, comment, log)` | Throws when the catalog is not checked out. Otherwise calls the `FileManager.CheckinFile` overload whose last parameter is `FilePathAbsolute` (the local file), with the comment, classification `None`, keep-checked-out false. Logs "Vault check-in: PASS (now version N)". Releases a session this class opened. |
+| `UndoCheckout(s, log)` | Logs "nothing to undo" when the file is not checked out. Otherwise tries `FileManager.UndoCheckoutFile`, then `DocumentService.UndoCheckoutFile(masterId, ...)`. Always releases the session. |
+| `EndSession()` | Releases a session kept by `Checkout` that was never closed by `Checkin` or `UndoCheckout`. |
+| `TestReport(s, connect = true)` | Never throws. Lines: host runtime, Vault client, add-in session, server and vault, then either "Vault is OFF" (path blank) with the working copy's read-only state, or a real connection, the catalog's Vault version and checkout state, and whether the working copy matches. Ends with `Vault test: PASS` or `Vault test: FAIL - <reason>`. Can show the Vault login dialog. |
+| `Connect(s, log)` | Connection order: (1) the Vault add-in's session (`Connectivity.Application.VaultBase.ConnectionManager.Instance.Connection`, not owned, never logged out); (2) the SDK assemblies from the process, else from the Vault Explorer folder, then the Vault login dialog `...Vault.Forms.Library.Login(LoginSettings)` pre-filled with server and vault name (`OperationCanceledException` "Vault login was cancelled. Nothing was changed." when cancelled); (3) Windows authentication through `WinAuthCredentials` and a `Connection` built with `AuthenticationFlags.WindowsAuthentication`. The server setting has any `http://` or `https://` prefix and trailing `/` removed. |
+| `VaultSession` | Holds the connection, where it came from and whether this class owns it. `Release()` logs out an owned session through `Library.ConnectionManager.LogOut`, else disposes the web service manager. |
+
+Errors a user can see from this class, besides the ones above: "Vault SDK assembly <name>.dll was not found. Install the Vault Client 2026...", a .NET mismatch sentence from `VaultProbe.RuntimeMismatch`, "The catalog was not found in Vault at <path>. The Catalog Vault path setting must be the file's path inside Vault, for example $/CAD Standards/AutoCAD/ECAD Standards/E-CAD .mbd ACCESS FILES/AeData/en-US/Catalogs/default_cat.mdb", "Vault check-in failed: ...", "Vault undo check-out failed: ...".
+
+## src/VaultProbe.cs
+
+`static class VaultProbe`. Identical copy in every LSE plugin folder (namespace aside). Never loads Vault itself; it looks at assemblies already in the process and at files on disk.
+
+| Member | Behaviour |
+|---|---|
+| `RuntimeLine()` | `Host: <process> on <framework> (.NET <major>)`. |
+| `AddinConnection()`, `AddinLine()` | The Vault add-in's connection, or null; one line saying logged in as whom, loaded but not logged in, or not loaded. |
+| `DiscoverExplorerFolder(configured)` | The configured folder if it exists, else the newest `Program Files\Autodesk\Vault*\Explorer` that holds `Autodesk.Connectivity.WebServices.dll`. |
+| `TargetFrameworkOf`, `TargetMajor`, `FileVersion` | Read a DLL's target framework from its metadata without loading it. |
+| `RuntimeMismatch(folder)` | Null when the Vault client can load here; otherwise a sentence: .NET Framework build, or built for a newer .NET than the host (AutoCAD 2026.1.2, Inventor 2026.4 and Vault 2026.4 moved to .NET 10 together). |
+| `ClientLine`, `Report` | One-line and three-line summaries used by Settings > Test. |
+| `IsReadOnly(path)`, `InVaultWorkingFolder(path)` | Read-only attribute; path contains `\_Lake_Shore_E_Vault\` or starts with `C:\_Lake_Shore_E_Vault\`. |
+| `RequireWritable(files, what)` | Throws `InvalidOperationException` listing every read-only file, with "check them out in Vault first" when they are in the working folder, ending "Nothing was changed.". |
+| `CheckinReminder(touched)` | After success: one header line and one line per touched file that is in the Vault working folder and exists. Blank entries are ignored. |
 
 ## src/SettingsForm.cs
 
@@ -162,7 +188,7 @@ Reflection and `dynamic` over three Vault SDK assemblies loaded from `VaultExplo
 | Member | Behaviour |
 |---|---|
 | `Save()` | Validates: units must be `in` or `mm`; LSE part attribute non-blank (stored upper-case); tag text height and curve tolerance positive numbers (invariant culture); max curves a positive integer. Calls `SettingsService.Save`, closes with `DialogResult.OK`. Validation errors show a message box and keep the form open. |
-| `Test()` | Four checks shown in one message box: catalog read (counts family tables), footprint lookup read (calls `TableExists("AB")`), naming standard load (tab and manufacturer counts plus the `source` string), and whether `AutoCAD.Application` is registered. |
+| `Test()` | Four checks, plus the Vault report (`VaultCatalogService.TestReport`, built from the current box values; host .NET, Vault client and .NET match, Vault add-in session, connection; may show the Vault login dialog), shown in one message box: catalog read (counts family tables), footprint lookup read (calls `TableExists("AB")`), naming standard load (tab and manufacturer counts plus the `source` string), and whether `AutoCAD.Application` is registered. |
 
 ## src/FootprintWizardForm.cs
 
@@ -196,8 +222,26 @@ Input limits enforced by the controls: MANUFACTURER 24, catalog number 60, descr
 | `Deactivate()` | Closes the wizard, releases both button definitions, forces GC. |
 | `ExecuteCommand(int)` | Empty. |
 | `Automation` | Returns `null!`; no automation interface is exposed. |
+| `Run(Action)` (private) | Wraps both button handlers; shows `ex.ToString()` in a message box titled "LSE Footprint Tools". |
 | `OpenWizard()` (private) | Singleton: activates the existing wizard if open, else creates one owned by `InventorWindow`. |
 | `OpenSettings()` (private) | Shows `SettingsForm` modally, owned by Inventor. |
+
+## tests/VaultFakeTest
+
+Console program (`net8.0-windows`) that links `src/VaultCatalogService.cs` and `src/VaultProbe.cs` and declares its own small `AppSettings` (only the five properties the Vault code reads). The four stub projects in `FakeSdk/` build assemblies with the real names (`Autodesk.Connectivity.WebServices`, `Autodesk.DataManagement.Client.Framework`, `...Framework.Vault`, `Connectivity.Application.VaultBase`) and an in-memory vault holding one file plus a "server copy" on disk. There is no Forms stub, so the login dialog route is never exercised; the test covers Windows authentication and the add-in session.
+
+| Scenario | What it proves |
+|---|---|
+| A | Windows authentication with the cleaned server name; path normalised; checkout + download of a stale read-only copy; check-in uses the `FilePathAbsolute` overload; session logged out. |
+| B | No download when size and date match; undo through `FileManager.UndoCheckoutFile`. |
+| C | Refusal naming the other user and machine when the file is checked out elsewhere. |
+| D | Wrong Vault path gives `FileNotFoundException` with the setting hint. |
+| E | `TestReport` end to end and session released. |
+| G | Stale copy plus Framework failure: refused, no DocumentService fallback. |
+| H | Current copy plus Framework failure: DocumentService checkout fallback, then undo. |
+| F | The Vault add-in's session is used, with no Windows authentication and no logout. |
+
+Run: `dotnet build` the project, then `dotnet bin\Release\VaultFakeTest.dll [explorerFolder]`. Prints `ALL PASS` or `N FAILED`; exit code = failures.
 
 ## tools/extract_naming_standard.py
 

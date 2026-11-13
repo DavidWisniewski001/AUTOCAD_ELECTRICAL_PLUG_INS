@@ -1,5 +1,7 @@
 # LSE Project Tools (AutoCAD Electrical 2026 plugin, Lake Shore Electric)
 
+Maintained by DCW. Last reviewed 2026-11-13.
+
 Creates a complete Lake Shore Electric job in AutoCAD Electrical from one wizard: the job folder in the right place on
 the vault (`Custom Sales Order\UL 891 Switchboards\Eaton\Fixed IC Breakers\2500A\001096-1_AEC Contractors`), every
 `001096-1-Ennn.dwg` sheet from the LSE template drawings with the `ECAD_LSE_CUSTOM_TB_2.0` title block and `WD_M`
@@ -31,7 +33,7 @@ a shareable JSON standard, a transaction that logs every step and rolls back on 
 These documents are maintained with the `lse-documenter` agent definition in `../agents/lse-documenter.md`; the plugin
 itself is owned by `../agents/lse-project-tools-guardian.md`.
 
-**Status (2026-11-10):** made LSE-specific (this README describes the result). Compiles in Release with no warnings
+**Status (2026-11-12-r7, reviewed 2026-11-13):** Vault-aware (sidecar clash refusal, check-in reminders, Vault lines in diagnostics; unverified in AutoCAD). Since 2026-11-10 made LSE-specific (this README describes the result). Compiles in Release with no warnings
 against the AutoCAD.NET 25.1.0 reference package; the file-format, naming, validation and vault-path logic passed a
 55-check console smoke test that includes a byte-identical round trip of the real template `.wdp` and generated
 `.wdl` / `.wdt` files equal to the template's own. The plugin has not yet been loaded into AutoCAD Electrical. Follow
@@ -59,19 +61,19 @@ E4xx metering, E5xx schedules) is inferred from `000924-1-E303.dwg` and must be 
 
 | Command | Purpose |
 |---|---|
-| `LSENEWPROJECT` | Four-step wizard: Job and descriptions → Vault location and templates → Drawings → Review and create |
+| `LSENEWPROJECT` | Four-step wizard: 1 Job and descriptions, 2 Vault location and templates, 3 Drawings, 4 Review and create |
 | `LSEPROJECTACTIVATE` | Pick an existing `.wdp` and make it the active project (tests the LISP bridge) |
 | `LSEPROJECTSETTINGS` | Vault paths, defaults, option switches, activation LISP |
-| `LSEPROJECTDIAG` | Runtime, vault working folder, settings, templates JSON, template folder files, template drawing inspection (WD_M present? LSE title block matched?), template project parse |
+| `LSEPROJECTDIAG` | Runtime, Vault client and add-in login, vault working folder, settings, templates JSON, template folder files, template drawing inspection (WD_M present? LSE title block matched?), template project parse |
 
 ## The wizard
 
 1. **Job and project descriptions.** LSE job number (validated as `NNNNNN-R`), product line (UL 891 Switchboard, UL
    1008 Transfer Switch, UL 508A Control Panel, Other), drawing set, the eight description lines with the template's
-   placeholders, a unit-specs builder (Type, Amps, Voltage, kAIC, NEMA → `SWBD, 2500A, 277/480VAC, 65KA@480V, N1` into
+   placeholders, a unit-specs builder (Type, Amps, Voltage, kAIC, NEMA, composing `SWBD, 2500A, 277/480VAC, 65KA@480V, N1` into
    line 7), optional IEC codes for `WD_M`.
-2. **Vault location and templates.** Jobs root (`Custom Sales Order`), the product line's folder pickers (Manufacturer
-   → Breaker type → Amperage, editable), job folder name (`{JOB}_{CUSTOMER}`), project name (`{JOB}`), the resulting
+2. **Vault location and templates.** Jobs root (`Custom Sales Order`), the product line's folder pickers (Manufacturer,
+   Breaker type, Amperage; editable), job folder name (`{JOB}_{CUSTOMER}`), project name (`{JOB}`), the resulting
    `.wdp` path, the template project and drawing template, and the option switches.
 3. **Drawing list.** Sheets pre-filled from the drawing set with their E-numbers; file names follow `{JOB}-E{SHEET:3}`
    until edited; add, remove, reorder, regenerate names, renumber `001..n`; per-row template (`STOCKCODE-E001.dwg` for
@@ -98,15 +100,15 @@ from the JSON in the same format, and the smoke test shows the generated files e
 Point `LSEPROJECTSETTINGS > Project templates JSON` at a shared copy on the vault so everyone creates identical jobs.
 Every section is explained in the file header; in short:
 
-- `vault` – standards root, jobs root, the template project `.wdp`, the drawing and cover template file names, the symbol library. Settings default from here (remapped to whichever drive holds `_Lake_Shore_E_Vault`).
-- `job` – the job number pattern, example and hint; the folder, project and file name patterns (`{JOB}`, `{CUSTOMER}`, `{QUOTE}`, `{SHEET:3}`, `{DATE}`, `{USER}`, `{YEAR}`).
-- `descriptionLines` – the eight template lines: label, title block attribute, role (`title`, `quote`, `customer`, `designation`, `specs`, `scale`, `date`, `user`), placeholder, default, required.
-- `labelFile.extraLabels` – LINE9..14 for a generated `.wdl`.
-- `titleBlock` – `ECAD_LSE_CUSTOM_TB_2.0`, `DWG_NUMBER` for the file name, `DWG_TYPE` for drawing description 1.
-- `wdm` – WD_M attribute tags.
-- `unitSpecs` – the choice lists and pattern of the line-7 builder.
-- `productLines` – the vault folder tree (levels and children), the unit type and the drawing set each product line pre-selects.
-- `projectTypes` – the drawing sets with E-numbers, drawing types and per-row templates.
+- `vault` - standards root, jobs root, the template project `.wdp`, the drawing and cover template file names, the symbol library. Settings default from here (remapped to whichever drive holds `_Lake_Shore_E_Vault`).
+- `job` - the job number pattern, example and hint; the folder, project and file name patterns (`{JOB}`, `{CUSTOMER}`, `{QUOTE}`, `{PRODUCTLINE}`, `{PROJECT}`, `{SHEET}`, `{SHEET:3}`, `{DATE}`, `{USER}`, `{YEAR}`).
+- `descriptionLines` - the eight template lines: label, title block attribute, role (`title`, `quote`, `customer`, `specs` and `job` change behaviour; `designation`, `scale`, `date`, `user` are labels only), placeholder, default, required.
+- `labelFile.extraLabels` - LINE9..14 for a generated `.wdl`.
+- `titleBlock` - `ECAD_LSE_CUSTOM_TB_2.0`, `DWG_NUMBER` for the file name, `DWG_TYPE` for drawing description 1.
+- `wdm` - WD_M attribute tags.
+- `unitSpecs` - the choice lists and pattern of the line-7 builder.
+- `productLines` - the vault folder tree (levels and children), the unit type and the drawing set each product line pre-selects.
+- `projectTypes` - the drawing sets with E-numbers, drawing types and per-row templates.
 
 If the title block is not found, run `LSEPROJECTDIAG`: it lists every block in the template's layouts that matched the
 configured name, with its attribute tags, so the JSON can be corrected.
@@ -120,9 +122,27 @@ configured name, with its attribute tags, so the JSON can be corrected.
 ## Deploy / load
 
 1. Build Release; copy the output folder (DLL + `LseProjectTemplates.json`) to the vault or each workstation.
-2. `NETLOAD` → `LSE.AutoCADElectrical.ProjectTools.dll`, or copy `bundle\LSE.ProjectTools.bundle` to `%APPDATA%\Autodesk\ApplicationPlugins\` with the build output in `Contents\` for automatic loading.
+2. `NETLOAD` and pick `LSE.AutoCADElectrical.ProjectTools.dll` (once per AutoCAD session), or copy `bundle\LSE.ProjectTools.bundle` to `%APPDATA%\Autodesk\ApplicationPlugins\` (per user) or `C:\ProgramData\Autodesk\ApplicationPlugins\` (all users) with the build output in `Contents\`. The bundle loads the DLL the first time one of the four commands is typed (`LoadOnCommandInvocation`, not at startup). `LseProjectTemplates.json` must sit beside the DLL in `Contents\` unless Settings points at a shared copy.
 3. Run `LSEPROJECTDIAG`. On a workstation with the vault working folder at `C:\_Lake_Shore_E_Vault` every path is pre-filled: jobs root `Custom Sales Order`, template project `E-CAD CUSTOM PROJECT TEMPLATE 2.wdp`, drawing template `DRAWING-#.dwg`, the NFPA symbol library. Fix anything marked MISSING or FAIL in `LSEPROJECTSETTINGS`.
 4. Create a test job into a scratch jobs root first (change **Jobs root** for that run) and open it in the Project Manager.
+
+## Wizard options (check boxes on step 2)
+
+Nine check boxes on step 2 decide what one run writes. The first eight start from the defaults saved in
+`LSEPROJECTSETTINGS`; ticking or unticking them in the wizard affects that run only and is not saved. The ninth,
+**Allow an existing, non-empty project folder**, has no saved default and always starts unticked. **Copy the
+template's own .wdt and .wdl** only matters while **Write .wdt** or **Write .wdl** is ticked. **Set WD_M** off also
+stops the plugin inserting a missing WD_M block. The full table is in [docs/OPERATIONS.md](docs/OPERATIONS.md)
+section 4.
+
+## Versioning
+
+| Where | Value |
+|---|---|
+| Release cut | The plugin ships in the dated LSE release `LSE-Plugins-<date>-r<n>` as `LSE.AutoCADElectrical.ProjectTools-<date>-r<n>.zip` (latest in `../releases/`: `2026-11-12-r7`). This is the version to quote. |
+| `bundle/.../PackageContents.xml` | `AppVersion="1.0.0"`, not bumped per cut. |
+| `LSEPROJECTDIAG` header | `LSE Project Tools V2 (Lake Shore Electric)`: the generation of the design (V2 = LSE-specific), not a build number. |
+| Assembly | No `<Version>` in the `.csproj`, so the DLL reports 1.0.0.0. There is no build tag in the window titles (unlike LSE_Env and LSE_Doctor). |
 
 ## Project activation
 
@@ -138,5 +158,6 @@ on any existing project. `(ace_getactiveproject)` at the command line shows whic
 - `wd_makeproj_current` comes from an Autodesk forum answer, not the official API reference; confirm on one workstation.
 - The product-line folder tree is a snapshot of `Locations.txt` from 2026-11-10; new amperages or manufacturers can be typed in the wizard, but the JSON should be updated when the vault tree changes.
 - The `.aepx` is written in the template's shape but AutoCAD Electrical's acceptance of a pre-written one is unverified (it rewrites the file itself on open).
-- No Vault check-in: the new job folder is created in the working folder and must be checked in by hand.
+- Vault: the plugin never checks files in or out itself. Before writing, an existing job folder with a `.wdp`, `.wdt`, `_wdtitle.wdl`, `.aepx` or a read-only `LSE_ProjectReport.txt` is refused with nothing changed (files under Vault control that are not checked out are read-only). After a successful run the report `LSE_ProjectReport.txt` lists every created file and the job folder to add to Vault (Vault tab > Add Files, or Vault Explorer). `LSEPROJECTDIAG` shows the host .NET runtime, the installed Vault client and its .NET compatibility, whether the Vault add-in is logged in, and "Get Latest Version" hints for template/library paths that are missing inside the working folder.
+- .NET: AutoCAD 2026.1.2 and Vault 2026.4 moved to .NET 10 together (no API changes); this net8.0-windows plugin still loads. Keep the two on matching releases.
 - Drawing properties beyond `WD_M` attributes are not touched; the template drawings define them.

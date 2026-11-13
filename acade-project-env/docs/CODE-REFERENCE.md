@@ -1,7 +1,8 @@
 # Code reference: LSE_Env
 
-Maintained by DCW. Last reviewed 2026-11-12.
+Maintained by DCW. Last reviewed 2026-11-13.
 
+Every file, type and public member of LSE_Env, the six commands, and which control in which form feeds which call.
 Namespace `LSE.AutoCADElectrical.ProjectEnvironment`, assembly `LSE_Env`. All classes are `sealed` or `static`.
 
 ## Contents
@@ -20,7 +21,9 @@ Namespace `LSE.AutoCADElectrical.ProjectEnvironment`, assembly `LSE_Env`. All cl
 - [src/DiagnosticsService.cs](#srcdiagnosticsservicecs)
 - [src/ErrorService.cs](#srcerrorservicecs)
 - [src/BuildInfo.cs](#srcbuildinfocs)
+- [src/VaultProbe.cs](#srcvaultprobecs)
 - [src/PlanGridService.cs](#srcplangridservicecs)
+- [src/HelpText.cs](#srchelptextcs)
 - [Forms](#forms)
 - [Project, rules, profiles, manifest and test files](#project-rules-profiles-manifest-and-test-files)
 
@@ -98,9 +101,10 @@ Identical in behaviour to LSE_Doctor's: `Read`, `Write`, `EncodingName`, `TryInd
 | Member | What it does |
 |---|---|
 | `ReadProject(wdp, rules, bridge, inspectDrawings, progress)` | `ProjectState` with lines, drawings, marker; inspects drawings (open ones through their Document) through `bridge.Inspect` |
-| `ResolveFromTo(profile, scheme)` | profile's `FromTo` when the scheme is From/To (or no scheme), else the scheme's |
+| `ResolveFromTo(profile, scheme)` | with a From/To scheme: the profile's `FromTo` if it has one, else the scheme's; with a non-From/To scheme: none (a profile's own `FromTo` is ignored); with no scheme: the profile's `FromTo` (or none) |
 | `Resolve(profile, scheme, rules, settings, log)` | key -> value: scheme (template or fixed) then profile |
-| `Plan(state, profile, scheme, rules, settings, bridge, applyDrawings, traceWires, progress)` | the `EnvPlan`; resolves the profile's scheme when none is passed |
+| `Plan(state, profile, scheme, rules, settings, bridge, applyDrawings, fromTo, progress)` | the `EnvPlan`; resolves the profile's scheme when none is passed. `applyDrawings` false: no `WD_M` rows or drawing notes at all. `fromTo` true: traces wires only when the bridge can read wires **and** `state.DrawingsInspected` (otherwise one log line says why); From/To plans when the resolved From/To settings exist, else un-fix plans when a scheme is given or the marker records From/To. Sets `Selected = Applies && Recommended` on every change |
+| `NothingToApply(plan)` | the message shown when a plan has no applicable change: the notes counted by reason |
 | `Capture(state, rules, name)` | profile from the project's current mapped, unprotected values |
 | `Take(wdp, rules, bridge, drawings)` / `Diff(a, b, rules)` | snapshot and textual diff with map keys |
 | `Render(plan)`, `Short(text)` | report text |
@@ -155,9 +159,13 @@ Static class, compact. `Log(step, ex)` writes `Error_<yyyyMMdd_HHmmss>.txt` (ste
 `catch` and the six commands (step = command name); `ex.ToString()` goes to the log only. The Apply rollback path
 calls `Log` and still shows the full rollback log in `TextReportForm`.
 
+## src/VaultProbe.cs
+
+Shared with the other LSE plugins, copied verbatim. `RequireWritable(files, tail)` throws one `InvalidOperationException` naming every read-only file; `CheckinReminder(touched)` yields log lines for touched items inside the Vault working folder; `Report("")` gives the runtime / Vault client / Vault add-in lines used by `LSEENVDIAG`; `IsReadOnly`, `InVaultWorkingFolder`. Unverified in a live Vault session.
+
 ## src/BuildInfo.cs
 
-`Release` (`"2026-11-12-r6"`, bump it with every release zip together with `<Version>` in the `.csproj` and
+`Release` (`"2026-11-12-r7"`, bump it with every release zip together with `<Version>` in the `.csproj` and
 `AppVersion` in `PackageContents.xml`), `Label` (`LSE_Env <Release>`) and `Title(window)` (`LSE_Env: <window>   [<Release>]`,
 used for every form's `Text`). `ErrorService` writes `Build:` into the log and the dialog's "Where" line;
 `DiagnosticsService` prints it on line 2. Purpose: a stale DLL in the bundle's `Contents\` is recognised at a glance.
@@ -183,11 +191,31 @@ line endings to CRLF for the TextBox. Shown through `TextReportForm` by the Help
 
 | Form | Density | Notes |
 |---|---|---|
-| `EnvironmentForm(initialProject, activeProject)` | expanded | Help button next to Close, tooltips on all header controls, tick boxes, Plan, tick buttons, Report and Apply (`SetTips`); properties `ReloadProjectPath`, `RetagRequested`; loads rules and profiles in `Shown`, plans automatically when a project is preset; grid columns Apply, Scope, Item, Project has, Becomes, Change, Note; Capture... prompts for a name and saves a profile; Manage... opens `ProfilesForm`; Apply re-plans afterwards |
-| `WireSchemeForm(start, activeProject)` | compact | Help button, tooltips; radio button per scheme with description; Preview shows the rendered plan; Switch confirms counts then applies |
+| `EnvironmentForm(initialProject, activeProject)` | expanded | Help button next to Close, tooltips on all header controls, tick boxes, Plan, tick buttons, Report and Apply (`SetTips`); properties `ReloadProjectPath`, `RetagRequested`; loads rules and profiles in `Shown`, plans automatically when a project is preset; grid columns Apply, Scope, Item, Project has, Becomes, Change, Note; Capture... prompts for a name and saves a profile; Manage... opens `ProfilesForm`; Apply re-plans afterwards. `AcceptButton` is Plan |
+| `WireSchemeForm(start, activeProject)` | compact | Help button, tooltips; radio button per scheme with description; Preview shows the rendered plan; Switch confirms counts then applies the recommended changes (no grid) |
+
+### Where each tick box is read
+
+| Form | Control | Initial value | Read by | Effect |
+|---|---|---|---|---|
+| `EnvironmentForm` | `drawingsBox` "Read every drawing" | `AppSettings.ApplyToDrawings` | `Plan()` (as both `inspectDrawings` and `applyDrawings`), `CaptureProfile()` | inspect drawings; plan `WD_M` rows. No change handler |
+| `EnvironmentForm` | `wiresBox` "Trace wires" | `AppSettings.ComputeFromTo` | `Plan()` (as `fromTo`) | trace wires, only when `drawingsBox` was also ticked. No change handler |
+| `EnvironmentForm` | `retagBox` "Queue retag after apply" | `AppSettings.RetagAfterApply` | `Apply()` (confirmation text and `RetagRequested`) | `Commands.After` queues `RetagLisp` |
+| `EnvironmentForm` | grid column 0 "Apply?" (`DataGridViewCheckBoxColumn`) | `Change.Applies && Change.Selected` | `CurrentCellDirtyStateChanged` commits at once; `CellValueChanged` (column 0, not while `loadingGrid`, only rows whose `Change.Applies`) sets `Change.Selected` and calls `UpdateSummary` | `ApplyService.Execute` takes `Selected && Applies` |
+| `EnvironmentForm` | `showInfoBox` "Show notes" | ticked | `CheckedChanged` then `FillGrid()` | `PlanGridService.Fill(showNotes)`; ticks survive because they live on `Change` |
+| `WireSchemeForm` | `drawingsBox` "Write every drawing's WD_M too" | `ApplyToDrawings` | `Run()` (inspect flag `drawingsBox || wiresBox`; `applyDrawings`) | as above |
+| `WireSchemeForm` | `wiresBox` "Trace wires ..." | `ComputeFromTo` | `Run()` (`fromTo`) | trace wires; works without `drawingsBox` |
+| `WireSchemeForm` | `retagBox` "Queue Insert Wire Numbers ..." | `RetagAfterApply` | `Run(true)` | `RetagRequested` |
+| `ProfilesForm` | `ownFromToBox` | `profile.FromTo is not null` | `EnableFromTo()`, `Commit()` | ticked: `FromTo` built from the fields; unticked: `FromTo = null` |
+| `ProfilesForm` | `pinBox`, `terminalsLastBox`, `uppercaseBox`, `fixedBox`, `overwriteFixedBox` | the profile's (or default) `FromToSettings` | `Commit()` only when `ownFromToBox` is ticked; enabled only then | `IncludeTerminalPin`, `TerminalsLast`, `Uppercase`, `Fixed`, `OverwriteFixed` used by `WireNetworkService` |
+| `SnapshotForm` | `drawingsBox` "Include every drawing's WD_M" | ticked | `Take()` | `EnvironmentService.Take(..., drawings)` |
+| `EnvSettingsForm` | five check boxes | `AppSettings` | Save | `ApplyToDrawings`, `ComputeFromTo`, `RetagAfterApply` (window defaults only), `ReactivateAfterApply`, `ShowReportAfterApply` |
+
+The window tick boxes are never written back to `settings.json`; only `LastProfile`, `LastScheme` and `RecentProjects`
+are saved by the windows.
 | `ProfilesForm(projectPath)` | expanded | Help button (left of Save), `ToolTip` on every editor control (`SetTips`, scheme tooltip built from the loaded rules in `SetSchemeTip`), grid Value cell `ToolTipText` from the map label/note/choices; list, editor (name, customer, description, scheme, settings grid, raw overrides, file sources, From/To block), New, Duplicate, Capture from project..., Import..., Export..., Retire, Save; warns on unsaved changes |
 | `SnapshotForm(start)` | compact | Take A, Take B, Diff, B becomes A, Save diff; A and B persist in `Snapshots\last_A.json` / `last_B.json` so AutoCAD can be used between them |
-| `EnvSettingsForm` | compact | every `AppSettings` field; Diagnostics button |
+| `EnvSettingsForm` | compact | every `AppSettings` field except `LastProfile`, `LastScheme` and `RecentProjects` (eight text fields, five check boxes); validates backups-to-keep, backup folder name and profiles folder on Save; Diagnostics button |
 | `TextReportForm(title, text)` | compact | read-only monospace text, Save as |
 
 ## Project, rules, profiles, manifest and test files
@@ -196,5 +224,10 @@ line endings to CRLF for the TextBox. Shown through `TextReportForm` by the Help
   or the `AutoCAD.NET` 25.1.0 package; copies `config\LseEnvRules.json` and `config\profiles\*.json`; excludes `tests\`.
 - `config\LseEnvRules.json`: see [DATA-STORES.md](DATA-STORES.md) section 3.
 - `config\profiles\*.json`: the three sample profiles.
-- `bundle\LSE_Env.bundle\PackageContents.xml`: autoloader manifest, six commands, `R25.1`.
-- `tests\LSE_Env.SmokeTest\`: console project referencing `bin\Release\LSE_Env.dll`; 76 checks.
+- `LSE_Env.csproj` versions: `Version` / `AssemblyVersion` / `FileVersion` `1.7.0`, `InformationalVersion`
+  `2026-11-12-r7`.
+- `bundle\LSE_Env.bundle\PackageContents.xml`: autoloader manifest, six commands, `R25.1` only, load on command
+  invocation, `AppVersion="1.6.0"` (behind the `.csproj`).
+- `tests\LSE_Env.SmokeTest\`: console project referencing `bin\Release\LSE_Env.dll`; 93 checks in r7 in five numbered
+  sections (text files, rules, profiles, wire-network engine, planner and apply) plus the plan grid, help texts,
+  error log and build label.

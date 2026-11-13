@@ -1,6 +1,6 @@
 # Operations guide: LSE Librarian
 
-Maintained by DCW. Last reviewed 2026-11-12.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 How to install, configure and use the Librarian, what a run leaves behind, how to read the log, and how to recover by hand. Read [DATA-STORES.md](DATA-STORES.md) for where each file lives.
 
@@ -9,7 +9,7 @@ How to install, configure and use the Librarian, what a run leaves behind, how t
 | Requirement | Why |
 |---|---|
 | AutoCAD Electrical 2026 (x64, .NET 8 runtime comes with it) | Host application. |
-| Read and write access to the Vault working folder `C:\_Lake_Shore_E_Vault\CAD Standards\AutoCAD\ECAD Standards` (or wherever the libraries and `dat MENU` live) | The Librarian writes DWG, PNG and `.DAT` files there. Check out the `.DAT` files in Vault Explorer first if your Vault keeps them read-only. |
+| Read and write access to the Vault working folder `C:\_Lake_Shore_E_Vault\CAD Standards\AutoCAD\ECAD Standards` (or wherever the libraries and `dat MENU` live) | The Librarian writes DWG, PNG and `.DAT` files there. Check out the `.DAT` files, `footprint_lookup.mdb` and `default_cat.mdb` in Vault (Vault tab in AutoCAD or Vault Explorer) first: Vault keeps files that are not checked out read-only, and the Librarian refuses before writing anything when a file it must change is read-only. |
 | 64-bit Access Database Engine 2016 (or 2010) | For registering footprints in `footprint_lookup.mdb` and for adding catalog records to `default_cat.mdb`. Without it, untick the registration box and the catalog option. |
 | The LSE parts catalog workbook `LSE ELECTRICAL PARTS CATALOG MANAGER.xlsx` reachable on this workstation, or the JSON snapshot `LseNamingStandard.json` next to the DLL | Only for catalog records: the part-number naming scheme is read from the workbook. Excel is not needed; the workbook may be open in Excel elsewhere. |
 
@@ -17,7 +17,7 @@ How to install, configure and use the Librarian, what a run leaves behind, how t
 
 1. Copy the Release output folder (`LSE.AutoCADElectrical.Librarian.dll`, `.deps.json`, `.runtimeconfig.json`, `LseLibraryStandard.json`, `LseNamingStandard.json`) to a share or to each workstation.
 2. Either type `NETLOAD` in AutoCAD Electrical and pick the DLL (per session), or copy `bundle\LSE.Librarian.bundle` to `%APPDATA%\Autodesk\ApplicationPlugins\` and put the output files in its `Contents\` folder (loads on first use of a command).
-3. Type `LSELIBRARYDIAG`. The first lines show the runtime and the settings file; the rest should read `(exists)` or `PASS`. For catalog records look for `Parts catalog workbook: ... (exists)`, `Naming standard from workbook: PASS (33 naming tabs, ...)` (or `from JSON snapshot`) and `Catalog read: PASS (n family tables, part number column USER1, backups in ...)`.
+3. Type `LSELIBRARYDIAG`. The first lines show the runtime and the settings file; three Vault lines give the host .NET runtime, the installed Vault client with its .NET compatibility, and whether the Vault add-in in AutoCAD is logged in; the menus, lookup and catalog are marked "(writable)" or "(read-only: not checked out in Vault)"; the rest should read `(exists)` or `PASS`. For catalog records look for `Parts catalog workbook: ... (exists)`, `Naming standard from workbook: PASS (33 naming tabs, ...)` (or `from JSON snapshot`) and `Catalog read: PASS (n family tables, part number column USER1, backups in ...)`.
 
 ## 3. First-time configuration (per user)
 
@@ -40,13 +40,24 @@ Type `LSELIBRARYSETTINGS`.
 | Catalog backup folder (blank = next to the catalog) | leave blank for `<catalog folder>\LSE_Catalog_Backups`, or a folder on the share |
 | Catalog column holding the LSE part number | `USER1` unless the catalog keeps LSE numbers elsewhere |
 | Library standard JSON | the shared copy of `LseLibraryStandard.json` |
-| Backup folder | leave the default, or a per-user folder on the share |
-| Icon size | 40 (matches the existing icons) |
-| Default series | 002 |
-| Offer a catalog record (default_cat.mdb) in the Librarian wizard | ticked, unless this workstation should never write the catalog |
-| Fill USER2 with the purchase description (Description + MPN) by default | ticked (the LSE purchase description rule) |
+| Backup folder | leave the default (`%APPDATA%\LSE\AutoCADElectricalLibrarian\Backups`), or a per-user folder on the share |
+| Reference project (.wdp) | informational: the `.wdp` last used by **Read library paths from project...**; shown in diagnostics, not used by any run |
+| Icon size (pixels) | 40 (matches the existing icons); 16 to 1024 accepted |
+| Default series (3 digits) | 002; must be exactly three digits |
 
-On a workstation where the Vault working folder is at the standard path all of these are pre-filled. Otherwise press **Read library paths from project...**, choose any LSE `.wdp` (for example `E-CAD CUSTOM PROJECT TEMPLATE 2.wdp`), and the folders and menu names are taken from its `+[1]`..`+[4]` lines. Press **Test** (folders exist, both menus parse, JSON loads, lookup opens, the workbook or the snapshot parses with its tab and code counts, the catalog opens with its family table count), then **Save**.
+The five check boxes under the text rows:
+
+| Check box | Default | What it changes |
+|---|---|---|
+| Register footprints in footprint_lookup.mdb by default | ticked | Pre-ticks **Register in footprint_lookup.mdb** on wizard step 3 for footprints and nameplates. You can still untick it per item. No effect on symbols, circuits or `LSEFOOTPRINTMAP`. |
+| Audit opens every drawing (slow, checks attributes) | unticked | Default of **Open every drawing (slow)** in `LSELIBRARYAUDIT`. |
+| Audit also checks stock AutoCAD Electrical menu pages | unticked | Default of **Include stock AutoCAD Electrical pages** in `LSELIBRARYAUDIT`. |
+| Offer a catalog record (default_cat.mdb) in the Librarian wizard | ticked | Shows the catalog record group on wizard step 3 (never for user circuits). Untick it on a workstation that should never write the catalog from the wizard. `LSECATALOGADD` and `LSEFOOTPRINTMAP` ignore it. |
+| Fill USER2 with the purchase description (Description + MPN) by default | ticked | Pre-ticks **USER2 = purchase description** in the catalog record dialog (the LSE purchase description rule). |
+
+Buttons along the bottom: **Read library paths from project...**, **Test**, **Save naming snapshot (JSON)**, **Diagnostics** (the same report as `LSELIBRARYDIAG`) and **Save**. Nothing is stored until **Save**. Save refuses an icon size outside 16 to 1024, a series that is not three digits, blank menu file names or images subfolder, and an invalid part column name (a blank one becomes `USER1`). Settings live in `%APPDATA%\LSE\AutoCADElectricalLibrarian\settings.json`; the path is shown on the form.
+
+On a workstation where the Vault working folder is at the standard path all of these are pre-filled. Otherwise press **Read library paths from project...**, choose any LSE `.wdp` (for example `E-CAD CUSTOM PROJECT TEMPLATE 2.wdp`), and the folders and menu names are taken from its `+[1]`..`+[4]` lines. Press **Test** (folders exist, both menus parse, JSON loads, lookup opens, the workbook or the snapshot parses with its tab and code counts, the catalog opens with its family table count), then **Save**. **Test** does not check the read-only (Vault) state; `LSELIBRARYDIAG` does.
 
 If the workbook is reachable from this workstation, press **Save naming snapshot (JSON)** once: it parses the workbook, adds the family hints from the catalog and rewrites the snapshot file, so a workstation (or a day) without access to the workbook still issues numbers from the same scheme. Repeat it after the catalog manager adds a tab, a code or a batch of numbers; the snapshot does not update itself.
 
@@ -92,7 +103,7 @@ Read the summary; with a catalog record it includes `Catalog record  <table> | <
 - The `.DAT` opens in a text editor and differs from the backup copy only by the appended line(s).
 - For a footprint registered in the lookup, assign the catalog number to a schematic component and insert the footprint from the panel; AutoCAD Electrical should pick the library drawing.
 - For a catalog record, open Catalog Browser in AutoCAD Electrical on the family table and find the new row by MANUFACTURER and catalog number; `USER1` holds the LSE part number and `USER2` the purchase description.
-- Check the changed files in to Vault, including `default_cat.mdb` when a record was added.
+- Check the changed files in to Vault (new files: Add to Vault), including `default_cat.mdb` when a record was added. The end of the log lists them under "Vault: these N item(s) ... are not checked in yet". The Librarian does not check in itself.
 
 ## 4.1 Adding a catalog record
 
@@ -189,7 +200,14 @@ Icon (Render) written: ...\IMAGES\FP_002-PHO_RLY-27E891_BSE.png (40 px)
 Icon menu entry added to ACE_PANEL_MENU_NFPA.DAT page M128 (RELAYS PLUS): RELAY BASE 27E891|IMAGES\FP_002-PHO_RLY-27E891_BSE.png|C:\...\FP_002-PHO_RLY-27E891_BSE.dwg
 Footprint lookup [PHOENIX CONTACT] 2967015 -> C:\...\FP_002-PHO_RLY-27E891_BSE.dwg: PASS
 Status: SUCCESS
+Vault: these 4 item(s) are in the Vault working folder and are not checked in yet. Check them in (new files: Add to Vault) from the Vault tab or Vault Explorer so other workstations get them:
+  C:\_Lake_Shore_E_Vault\...\dat MENU\ACE_PANEL_MENU_NFPA.DAT
+  C:\_Lake_Shore_E_Vault\...\COMPONENT PANEL FOOTPRINTS\FP_002-PHO_RLY-27E891_BSE.dwg
+  C:\_Lake_Shore_E_Vault\...\dat MENU\IMAGES\FP_002-PHO_RLY-27E891_BSE.png
+  C:\_Lake_Shore_E_Vault\...\Catalogs\footprint_lookup.mdb
 ```
+
+The `Vault:` block appears only for files under `C:\_Lake_Shore_E_Vault\` (or any `\_Lake_Shore_E_Vault\` folder); a scratch copy elsewhere gets no reminder. `CatalogReport.txt`, `FootprintMapReport.txt` and `SymbolLinkReport.txt` end with the same block for the MDB they changed.
 
 With a catalog record the log continues after the lookup line:
 
@@ -254,7 +272,9 @@ For the catalog (`Catalog rollback: FAILED`, or a record that should not have be
 | Page M<n> already has an entry labelled "..." | Duplicate label | Change the label. |
 | An icon image with that name already exists | `IMAGES\<Name>.png` exists | Choose "Reuse an existing image" or rename. |
 | Another workstation is changing the icon menus right now | Lock held | Wait and retry; see section 7 if it persists. |
-| Access to the path is denied | `.DAT`, folder or image read-only (Vault) | Check out or make writable, retry. |
+| This file is read-only: <path>. They are in the Vault working folder: check them out in Vault first (the Vault tab in AutoCAD / Inventor, or Vault Explorer > Check Out), then run this again. Nothing was changed. (or "These files are read-only: ...") | A menu, lookup, catalog or in-place drawing the run would change has the read-only attribute, which Vault sets on files that are not checked out | Check every listed file out in Vault, retry. Nothing was backed up, locked or written. Outside the Vault working folder the middle sentence reads "If they are under Vault control check them out first; otherwise clear the read-only attribute." |
+| `LSECATALOGADD`: "The footprint mapping failed and footprint_lookup.mdb was restored: This file is read-only: ...footprint_lookup.mdb ... The catalog row stays." | The optional footprint box was ticked but `footprint_lookup.mdb` is not checked out. The read-only check for the lookup runs only after the catalog row is written. | The catalog row is in place and the lookup was never touched (despite "restored"). Check out `footprint_lookup.mdb` and map the part with `LSEFOOTPRINTMAP`. To avoid it, check out both MDBs before using the box. |
+| Access to the path is denied | A folder or image read-only, or a path outside the checked list | Check out or make writable, retry. |
 | No active drawing to export a block from | Block source with no document | Open the drawing that holds the block. |
 | Block ... was not found in the current drawing | Typed name is wrong | Press Refresh list or Pick in drawing. |
 | The drawing has no embedded preview image | DWG saved with previews off | Choose Render or import an image. |

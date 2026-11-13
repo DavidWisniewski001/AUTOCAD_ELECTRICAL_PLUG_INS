@@ -1,6 +1,6 @@
 # Architecture: LSE Footprint Tools (Inventor 2026 add-in)
 
-Maintained by DCW. Last reviewed 2026-11-08.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 LSE Footprint Tools is an Autodesk Inventor add-in that turns a 3D model of a purchased electrical component into an AutoCAD Electrical panel footprint and, in the same step, issues the component a new LSE part number and records it in the AutoCAD Electrical catalog database. It exists so that every new LSE part number is created through one guided, logged and reversible flow instead of by hand-editing `default_cat.mdb`. It is the sister project of the AutoCAD Electrical CatalogTools plugin in `../acade-catalog-tools`, which consumes the records this add-in creates.
 
@@ -12,7 +12,7 @@ Lake Shore Electric (LSE) assigns every catalog component a 14-character part nu
 
 ## 2. Components
 
-The add-in is one .NET 8 assembly, `LSE.Inventor.FootprintTools.dll`, loaded by Inventor. It contains eleven source files in one namespace, `LSE.InventorFootprintTools`.
+The add-in is one .NET 8 assembly, `LSE.Inventor.FootprintTools.dll`, loaded by Inventor. It contains thirteen source files in one namespace, `LSE.InventorFootprintTools`.
 
 | Layer | File | Responsibility |
 |---|---|---|
@@ -24,7 +24,9 @@ The add-in is one .NET 8 assembly, `LSE.Inventor.FootprintTools.dll`, loaded by 
 | Conversion | `src/AutoCadConvertService.cs` | Drives AutoCAD over COM to save the DXF as a DWG. |
 | Catalog access | `src/AccessCatalogService.cs` | Everything that touches the two Access databases through ADODB. |
 | Numbering | `src/PartNumberService.cs` | Validates codes, finds the highest used sequence, computes the next number. |
-| Orchestration | `src/FootprintTransactionService.cs` | The single mutating transaction, its lock, its backups, its rollback, and the Vault checkout and checkin. |
+| Orchestration | `src/FootprintTransactionService.cs` | The single mutating transaction, its lock, its backups and its rollback. It calls the Vault checkout and checkin at the right points. |
+| Vault | `src/VaultCatalogService.cs` | Connects to Vault (add-in session, login dialog or Windows authentication) and checks `default_cat.mdb` out, in, or undoes the checkout. Also the Vault part of Settings > Test. |
+| Vault awareness | `src/VaultProbe.cs` | Host .NET and installed Vault client report, Vault add-in session detection, the read-only refusal and the check-in reminder. Identical copy in every LSE plugin. |
 | Configuration | `src/SettingsService.cs` | Loads and saves `settings.json`; loads the naming standard JSON. |
 | Data shapes | `src/Models.cs` | Settings, naming standard, request and result classes. |
 
@@ -36,6 +38,7 @@ Supporting files:
 | `LSE.Inventor.FootprintTools.addin` | Inventor's add-in manifest. Tells Inventor which DLL and class to load. |
 | `config/LseNamingStandard.json` | The LSE part-number vocabulary (categories, types, manufacturer codes) generated from the LSE parts workbook. Copied to the output folder. |
 | `tools/extract_naming_standard.py` | Regenerates that JSON from the workbook and, optionally, the live catalog. |
+| `tests/VaultFakeTest/` | Console test of the two Vault files against a stub Vault SDK (27 checks). Excluded from the add-in build by `<Compile Remove="tests\**" />`. |
 
 ## 3. Dependency diagram
 
@@ -75,7 +78,7 @@ Nothing above the transaction service writes to disk except the settings form (s
 | Inventor | `Autodesk.Inventor.Interop.dll`, early-bound | Yes (Copy Local = false) | The add-in runs inside Inventor, so the interop assembly is always present at runtime. |
 | Access databases (`.mdb`) | `ADODB.Connection` created from its ProgID, driven through `dynamic` | No | Avoids a dependency on `System.Data.OleDb` and works with whichever 64-bit ACE provider is installed. Tries `Microsoft.ACE.OLEDB.16.0`, then `12.0`, then `Microsoft.Jet.OLEDB.4.0`. |
 | AutoCAD (Electrical) | `AutoCAD.Application` COM: attach to a running instance with `GetActiveObject`, else start one | No | Only used to re-save a DXF as DWG. Late binding means the add-in builds and loads on machines without AutoCAD. |
-| Autodesk Vault | Three SDK assemblies loaded with `Assembly.LoadFrom` from the Vault Explorer folder, invoked by reflection and `dynamic` | No | Identical approach to the AutoCAD Electrical plugin. Vault is optional; the add-in must build and run without the SDK installed. |
+| Autodesk Vault | SDK assemblies taken from the process (Inventor's Vault add-in) or loaded with `Assembly.LoadFrom` from the Vault Explorer folder, invoked by reflection and `dynamic` (`VaultCatalogService`, `VaultProbe`) | No | Identical approach to the AutoCAD Electrical plugin. Vault is optional; the add-in must build and run without the SDK installed. |
 
 All COM objects are `dynamic`, released with `Marshal.FinalReleaseComObject` in `finally` blocks through `Ace.Release`, and connections are closed through `Ace.Close`.
 
@@ -117,20 +120,28 @@ All COM objects are `dynamic`, released with `Marshal.FinalReleaseComObject` in 
 |---|---|---|
 | 1 | Validate the part-number codes, required fields, and length limits (MANUFACTURER 24, CATALOG 60, DESCRIPTION 150). Check both MDB files exist and the library folder is set. | Throws before anything is touched. |
 | 2 | Create the backup folder `<catalog folder>\LSE_Catalog_Backups\yyyyMMdd_HHmmss\`. | Throws. |
-| 3 | Acquire `IssuanceLock`: open `LSE_PartNumber.lock` beside the catalog with exclusive sharing and delete-on-close. Retries 40 times at 250 ms (10 s total), then fails with "Another workstation is issuing a part number right now". | Throws. |
+| 3 | Acquire `IssuanceLock`: open `LSE_PartNumber.lock` beside the catalog with exclusive sharing and delete-on-close. Retries 40 times at 250 ms (10 s total), then fails with "Another workstation is issuing a part number right now". | Throws. The empty backup folder from step 2 stays behind. |
 | 4 | Copy `default_cat.mdb` and `footprint_lookup.mdb` into the backup folder. | Throws. |
+| 4a | `VaultProbe.RequireWritable`: refuse when `footprint_lookup.mdb` is read-only, and also the catalog when the Catalog Vault path is blank. The message names the files and says to check them out in Vault. | Throws "Nothing was changed." No rollback is needed and no `TransactionReport.txt` is written; the backup copies stay. |
 | 5 | Scan `USER1` across all family tables for the prefix; compute the next number; store it in the request as `USER1`. | Rollback. |
 | 6 | Refuse if the same MANUFACTURER + CATALOG already exists in the chosen family table. | Rollback. |
 | 7 | Create the library folder if needed; refuse if `<PN>.dxf` or `<PN>.dwg` already exists. | Rollback. |
 | 8 | Write `<PN>.dxf` with the curves and the attribute set, pre-filling `MFG`, `CAT` and the LSE part attribute (default `USER1`). | Rollback. |
 | 9 | If "Convert DXF to DWG with AutoCAD" is on, open the DXF in AutoCAD and save as a 2018-format DWG; otherwise log SKIPPED. | Rollback. |
-| 10 | If a catalog Vault path is set, check the catalog out of Vault. | Rollback. |
+| 10 | If a catalog Vault path is set, check the catalog out of Vault (latest version downloaded over the working copy when size or date differ; refused if held by another user; read-only flag cleared). This may show the Vault login dialog; cancelling it fails the run. | Rollback. |
 | 11 | `INSERT` one row into the family table with only the non-empty columns that exist in that table. Read it back; refuse if not found. | Rollback. |
 | 12 | If checked out, check the catalog back in with comment `Add electrical catalog component <MFG> <CAT> (<PN>)`. | Rollback. |
 | 13 | Ensure a table named after `MANUFACTURER` exists in `footprint_lookup.mdb`, then insert or update the row for CATALOG with `BLKNAM` = full DWG path and the footprint description. | Rollback. |
-| 14 | Log `Status: SUCCESS`, write `TransactionReport.txt`, return the part number and paths. | n/a |
+| 14 | Log `Status: SUCCESS`, append the Vault check-in reminder lines, write `TransactionReport.txt`, return the part number and paths. | n/a |
 
-Rollback, in order: restore the catalog from its backup copy, restore the footprint lookup from its backup copy, delete the generated DXF and DWG, undo the Vault checkout if one was made, write `TransactionReport.txt` with the error and every rollback outcome, then rethrow with the whole log as the message so the wizard shows it. The lock is released when `Execute` returns or throws.
+`VaultCatalogService.EndSession()` runs in a `finally` after success or rollback. Rollback, in order: restore the catalog from its backup copy, restore the footprint lookup from its backup copy, delete the generated DXF and DWG, undo the Vault checkout if one was made, write `TransactionReport.txt` with the error and every rollback outcome, then rethrow with the whole log as the message so the wizard shows it. The lock is released when `Execute` returns or throws.
+
+Ordering caveats in Vault mode (read from the code, not yet seen on a workstation):
+
+- Steps 5 and 6 read the local working copy. The download of the latest Vault version happens later, in step 10. When the working copy is stale, the number issued and the duplicate check are based on the old copy, and the inserted row then lands in the newer downloaded copy. A number or MPN added on another workstation since the last download can therefore be duplicated.
+- The catalog backup (step 4) is the pre-download copy. A rollback after step 10 copies that older file back over the working copy and then undoes the checkout, so the working copy ends up stale again (harmless, since it is not checked in, but the next run downloads again).
+- If step 13 fails after step 12 checked the catalog in, the rollback restores the local catalog, but the new row is already in Vault. `UndoCheckout` then finds nothing checked out, logs "nothing to undo", and the log still shows "Vault undo checkout: PASS". The part number exists in Vault with no footprint lookup row. Re-run the lookup registration by hand (DATA-STORES section 4) or check the Vault history.
+- When step 12 fails, `VaultCatalogService.Checkin` says the working copy "holds the new record and is still checked out", but the rollback that follows restores the backup and undoes the checkout, so neither is true by the time the engineer reads it. Trust the rollback lines at the end of the report.
 
 ### 5.5 Consumers
 
@@ -167,4 +178,4 @@ The footprint origin (0,0) is the centre of the projected view. The visible `P_T
 
 ## 9. Relationship to the AutoCAD Electrical plugin
 
-`AccessCatalogService.cs` (the `Ace` helper, provider fallback, release pattern) and `VaultCatalogService` were carried over from `../acade-catalog-tools` with the same shapes. The two projects do not share a compiled assembly; the code is duplicated deliberately so each can ship alone. If you fix a defect in one copy, check the other.
+`AccessCatalogService.cs` (the `Ace` helper, provider fallback, release pattern) was carried over from `../acade-catalog-tools` with the same shapes. `VaultCatalogService.cs` and `VaultProbe.cs` were rewritten 2026-11-12 and are now the same text as the Catalog Tools copies except for the namespace and `VaultCatalogService.AppName` (`LSE Footprint Tools` here, used as the check-out comment in the DocumentService fallback). The Vault test folder is duplicated the same way. The two projects do not share a compiled assembly; the code is duplicated deliberately so each can ship alone. If you fix a defect in one copy, check the other.

@@ -1,6 +1,6 @@
 # Glossary: LSE_Doctor
 
-Maintained by DCW. Last reviewed 2026-11-10.
+Maintained by DCW. Last reviewed 2026-11-13.
 
 Terms used across the code and documentation, in alphabetical order. Shared AutoCAD Electrical terms are also defined in the glossary of LSE Project Tools (`../../acade-project-creator/docs/GLOSSARY.md`).
 
@@ -23,6 +23,7 @@ Terms used across the code and documentation, in alphabetical order. Shared Auto
 | Active project | The project currently selected in the Project Manager. |
 | `AutoCAD.NET` | NuGet reference package of AutoCAD's managed API. 25.1.0 corresponds to AutoCAD 2026 on .NET 8. Compile time only. |
 | Backup folder | `_LSE_DOCTOR_BACKUP\<yyyyMMdd_HHmmss>` inside the project folder; holds the originals of files a repair changed. |
+| Build tag | The release tag (`BuildInfo.Release`, for example `2026-11-12-r7`) at the end of every window title and in `LSEDOCTORDIAG`, so the workstation can tell which `LSE_Doctor.dll` AutoCAD loaded. |
 | Bundled standard | The copy of the template `.wdp`, `.wdt` and `_wdtitle.wdl` shipped in `standard\` next to the DLL; used when the Vault template is not reachable. |
 | `c:wd_makeproj_current` | AutoLISP function used to reload a project. From a forum answer; unverified. |
 | Category | Grouping of findings in the grid (for example "Title block mapping (.wdt)", "Wire layers", "Wire layer settings (WD_M)"). |
@@ -52,6 +53,7 @@ Terms used across the code and documentation, in alphabetical order. Shared Auto
 | LSE | Lake Shore Electric. |
 | Merge mode | Rules `pathListMode: merge`: template paths first, then the project's extra paths. |
 | `NETLOAD` | AutoCAD command that loads a managed DLL for the session. |
+| Note row | A row of the findings grid whose finding has `Action = None`: the doctor can report it but not repair it. It is grey, read-only, and shows the word `note` where other rows have a Fix box. The scan grid's equivalents are `ok`, `review` and `error`. |
 | Path list | A `;`-separated list of folders, as in `+[1]` and `+[3]`. |
 | Placeholder | The template's description line text (`PROJECT NAME`, `#####`, `CUST 1` ...). |
 | Project Manager | AutoCAD Electrical's project palette. |
@@ -66,14 +68,17 @@ Terms used across the code and documentation, in alphabetical order. Shared Auto
 | Severity | Error, Warning or Info. |
 | Side database | An AutoCAD `Database` object loaded from a DWG file without opening it as a document. The doctor reads every drawing, and the template drawing, this way. |
 | Single-name attribute | A `WD_M` wire-layer attribute that holds exactly one layer name (`WIRENO_LAY`, `WIRECOPY_LAY`, `WIREFIXED_LAY`, `WIREREF_LAY`). Compared trimmed, ignoring case. |
-| Smoke test | The console checks (90 on 2026-11-10) run against the built DLL for the logic that does not need AutoCAD, including the wire-layer logic. Not shipped. |
+| Smoke test | `tests\LSE_Doctor.SmokeTest`: 45 console checks of the grids, help texts and build tag against the built DLL, no AutoCAD needed. An earlier 90-check harness (2026-11-10) covered the text-file and wire-layer logic but is not in the tree. |
 | Standard | The LSE custom project template (`.wdp` + `.wdt` + `_wdtitle.wdl`) that projects are compared with. For wire layers, the template drawing. |
 | Standard wire layer | A layer name that is a wire layer of the template drawing, or matches the template's `WIRELAYS` patterns, or is one of the template's single-name attribute values (`WireLayerService.IsStandard`). Any other wire layer in a project drawing is non-standard. |
 | Template drawing | The first existing drawing in the template `.wdp` whose file name starts with `DRAWING` (`DRAWING-#.dwg`); the source of the `WD_M` block for insertion and the wire-layer standard. Only available when the Vault template folder is reachable. |
 | Title Block Update | AutoCAD Electrical command that fills title block attributes project-wide from the `.wdp` and the `.wdt`. |
 | Update to New WD_M Block | AutoCAD Electrical tool (Project > Other Tools) that replaces an old `WD_M` with the current definition, keeping values. The doctor asks for it when a drawing's `WD_M` lacks a wire-layer attribute the template's has. |
 | `USERS1` | AutoCAD user system variable (string). Used to carry the active project path back from LISP. |
-| Vault | The LSE file vault; its root is `C:\_Lake_Shore_E_Vault` in the configured paths. The doctor only hints at it: a read-only file is assumed to be not checked out. Which product manages it is not stated in the tree. |
+| Vault | Autodesk Vault, the LSE document management system; its working folder is `C:\_Lake_Shore_E_Vault`. Files that are not checked out are read-only there. The doctor refuses to repair read-only files, lists what to check in after a repair, and reports the Vault client and add-in in `LSEDOCTORDIAG`; it never checks files in or out. |
+| Vault add-in | The Autodesk Vault add-in inside AutoCAD (the Vault tab). `LSEDOCTORDIAG` reports whether it is loaded and logged in. |
+| Check out / check in | Vault operations that make a file writable for one user and send the changed file back to the server. Done by hand in the Vault tab or Vault Explorer, before and after a repair. |
+| Get Latest Version | Vault Explorer command that downloads the current files into the working folder; `LSEDOCTORDIAG` suggests it when the template is missing from a working-folder path. |
 | `VIA_WD*` | The default pattern for the registered-application name of wire-type xdata on a layer (`wireLayerXdataApps`). A guess; Autodesk does not document the name. |
 | `WD_M` | AutoCAD Electrical's drawing settings block. Its attributes hold sheet number, IEC codes, numbering defaults and the wire-layer settings (`WIRELAYS` and the other layer-naming tags). Every drawing in a project should carry one. |
 | `WblockCloneObjects` | AutoCAD .NET call that copies objects between databases; used to copy the `WD_M` definition, a layer table record and a linetype table record from the template drawing into a project drawing. |

@@ -26,7 +26,7 @@ back on failure, WinForms GUI in the LSE code style. It ships alone; no assembly
 
 These documents are maintained with the `lse-documenter` agent definition in `../agents/lse-documenter.md`. Run it after a change lands to refresh them.
 
-**Status (2026-11-12):** compiles in Release with 0 warnings against the AutoCAD.NET 25.1.0 reference package; the
+**Status (2026-11-12-r7):** compiles in Release with 0 warnings against the AutoCAD.NET 25.1.0 reference package; the
 icon-menu parser, naming rules, transaction (copy, icon, menu entry, new page, rollback, in-place registration) and
 audit passed a 66-check console smoke test against copies of the real `ACE_NFPA_MENU.DAT` and
 `ACE_PANEL_MENU_NFPA.DAT`, and the catalog-record addition (workbook parsing of every tab, JSON round trip, the legacy
@@ -35,6 +35,7 @@ lock) passed a 67-check console smoke test against a copy of the real workbook a
 `default_cat.mdb`. The footprint mapping (`LSEFOOTPRINTMAP`, the optional box in `LSECATALOGADD`, the audit note) passed 35 further checks on copies of the real `footprint_lookup.mdb` and `default_cat.mdb` (60 with the 25 catalog checks): create, update, refused duplicate, read-back, rollback, audit. The symbol link (below, Set symbol in `LSEFOOTPRINTMAP`) compiled in Release with 0 warnings and passed 25 further checks on the same copies (85 in total) on 2026-11-12. The plugin has not yet been loaded into AutoCAD Electrical; the parts that use the AutoCAD API
 (drawing inspection, WBLOCK export, icon rendering) and the dialogs inside AutoCAD are unverified. Follow the
 first-build checklist in the developer guide before using it on the live Vault working folder.
+r7 adds the Vault read-only guard (below); it compiles with 0 warnings and the smoke test gained two read-only refusal checks (84 with the lookup argument), but the Vault behaviour has not been seen against a live Vault.
 
 ## Commands
 
@@ -134,7 +135,7 @@ tab. `USER2` is filled with the purchase description (`DESCRIPTION, MPN <catalog
 
 **Safety.** The catalog is copied into `<catalog folder>\LSE_Catalog_Backups\<stamp>\` first, the number is issued
 under the lock file `LSE_PartNumber.lock` (shared with the Inventor add-in), the row is read back after the insert, and
-on any failure the backup is copied back over the catalog. Nothing talks to Vault: check the changed MDB in by hand.
+on any failure the backup is copied back over the catalog. Before the backup and lock the catalog is checked for the read-only attribute (Vault keeps files that are not checked out read-only); a read-only catalog is refused with "Nothing was changed". Afterwards the log lists the catalog as needing check-in. The Librarian never checks files in or out itself.
 
 ## Configuration: `config\LseLibraryStandard.json`
 
@@ -177,13 +178,13 @@ All of these are optional and default sensibly; older settings files keep workin
 ## Requirements on the workstation
 
 - AutoCAD Electrical 2026 (the host).
-- Write access to the Vault working folder that holds the libraries and `dat MENU`. The Librarian does not talk to Vault; check the changed files in from Vault Explorer afterwards (see known gaps).
+- Write access to the Vault working folder that holds the libraries and `dat MENU`. The Librarian does not talk to Vault. Before the first write every file the request will change (icon menu `.DAT`, `footprint_lookup.mdb`, `default_cat.mdb`, an in-place drawing) is checked for the read-only attribute; if any is read-only the run is refused, naming each file, with the instruction to check them out in Vault (Vault tab in AutoCAD or Vault Explorer), and nothing is backed up, locked or written. After a successful run the log (and `LibraryReport.txt`) lists the files in the Vault working folder that now need to be checked in (new files: Add to Vault). The same guard covers `LSEFOOTPRINTMAP` and the symbol link. `LSELIBRARYDIAG` shows the host .NET runtime, the installed Vault client and whether it is compatible, whether the Vault add-in in AutoCAD is logged in, and marks the menus, lookup and catalog "read-only: not checked out in Vault" or "writable". AutoCAD 2026.1.2 and Vault 2026.4 belong together and run on .NET 10 (no API change); this net8.0-windows plugin still loads.
 - 64-bit Access Database Engine (ACE 16 or 12), if footprints are registered in `footprint_lookup.mdb` or catalog records are added to `default_cat.mdb`.
 - For catalog records: the workbook `LSE ELECTRICAL PARTS CATALOG MANAGER.xlsx` reachable at the configured path, or the JSON snapshot `LseNamingStandard.json` next to the DLL (or at the configured path). No Excel is needed.
 
 ## Known gaps / next refinements
 
-- No Vault integration: the DWG, PNG, `.DAT` and MDB files are changed in the working folder and must be checked in by hand. `../inventor-addin/src/FootprintTransactionService.cs` (`VaultCatalogService`) shows the reflection approach if it is wanted. A changed `default_cat.mdb` in particular must be checked in by hand after a catalog record is added.
+- No Vault integration beyond the guard: the Librarian refuses read-only (not checked out) targets before writing and lists what to check in afterwards, but does not check files in or out. New files (DWG, PNG) are not checked for being new-to-Vault. `../inventor-addin/src/VaultCatalogService.cs` shows the reflection approach if it is wanted. Unverified against a live Vault: the read-only attribute is assumed to reflect check-out state, and the Vault client / add-in session detection in `VaultProbe`.
 - No rename or move of an existing library item: the audit tells you what is wrong, the wizard files a correctly named copy, and the old file and its menu entry are retired by hand.
 - The audit does not edit the menus (no automatic repair). Everything it reports has a suggested manual or Librarian action.
 - Workbook tabs without a "Part # Segment" table or without type codes (`LSE LABELS & NAMEPLATES`, `LSE CHEMICALS & CONSUMABLES` on 2026-11-10) are skipped, so no part number can be issued for them until the tab gets a naming block.
