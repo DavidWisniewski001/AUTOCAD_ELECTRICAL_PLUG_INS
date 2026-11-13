@@ -2,7 +2,7 @@
 <!-- Copy the LSE_Doctor.bundle folder to %APPDATA%\Autodesk\ApplicationPlugins\ (per user) or
      C:\ProgramData\Autodesk\ApplicationPlugins\ (all users) and put the Release build output in Contents\. -->
 <ApplicationPackage SchemaVersion="1.0" AutodeskProduct="AutoCAD" ProductType="Application"
-                    Name="LSE_Doctor" AppVersion="1.0.0" Description="Examines and repairs AutoCAD Electrical projects against the LSE custom project template."
+                    Name="LSE_Doctor" AppVersion="1.1.0" Description="Examines and repairs AutoCAD Electrical projects against the LSE custom project template."
                     Author="Lake Shore Electric" ProductCode="{9D4B7A21-3C6E-4F0A-8E7B-5A1C2D3E4F10}" UpgradeCode="{9D4B7A21-3C6E-4F0A-8E7B-5A1C2D3E4F11}">
   <CompanyDetails Name="Lake Shore Electric" />
   <Components Description="AutoCAD Electrical 2026">

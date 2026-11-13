@@ -10,7 +10,6 @@ public sealed class DoctorForm : Form
     private DoctorRules? rules;
     private ProjectStandard? standard;
     private Diagnosis? diagnosis;
-    private bool loadingGrid;
 
     public string? ReloadProjectPath { get; private set; }
 
@@ -40,14 +39,16 @@ public sealed class DoctorForm : Form
     private readonly CheckBox showInfoBox = new() { Text = "Show informational rows", AutoSize = true, Checked = true };
     private readonly Label summaryLabel = new() { AutoSize = true, Font = new Font("Segoe UI", 9f, FontStyle.Bold), Padding = new Padding(12, 6, 0, 0) };
     private readonly Label statusLabel = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
+    private readonly Button helpButton = new() { Text = "Help", Dock = DockStyle.Fill };
     private readonly Button reportButton = new() { Text = "Report...", Dock = DockStyle.Fill };
     private readonly Button repairButton = new() { Text = "Repair ticked", Dock = DockStyle.Fill, Enabled = false };
     private readonly Button closeButton = new() { Text = "Close", Dock = DockStyle.Fill };
+    private readonly ToolTip tips = new() { AutoPopDelay = 30000, InitialDelay = 300, ReshowDelay = 100 };
 
     public DoctorForm(string initialProject, string activeProject)
     {
         this.activeProject = activeProject;
-        Text = "LSE_Doctor";
+        Text = BuildInfo.Title("examine and repair a project");
         StartPosition = FormStartPosition.CenterParent;
         Size = new Size(1240, 760);
         MinimumSize = new Size(900, 560);
@@ -69,8 +70,8 @@ public sealed class DoctorForm : Form
             else if (projectBox.Text.Trim().Length == 0)
             {
                 Status(activeProject.Length == 0
-                    ? "No active project was detected. Browse to a project .wdp and press Examine."
-                    : "Press Examine.");
+                    ? "No active project was detected. Browse to a project .wdp and press Examine. Press Help for a guide to this window."
+                    : "Press Examine. Press Help for a guide to this window.");
             }
         };
     }
@@ -103,33 +104,28 @@ public sealed class DoctorForm : Form
         header.SetColumnSpan(examineButton, 2);
         root.Controls.Add(header, 0, 0);
 
-        AddColumn(new DataGridViewCheckBoxColumn { HeaderText = "Fix", Width = 44, Name = "Fix" });
-        AddColumn(new DataGridViewTextBoxColumn { HeaderText = "Severity", Width = 72, ReadOnly = true });
-        AddColumn(new DataGridViewTextBoxColumn { HeaderText = "Category", Width = 170, ReadOnly = true });
-        AddColumn(new DataGridViewTextBoxColumn { HeaderText = "Item", Width = 200, ReadOnly = true });
-        AddColumn(new DataGridViewTextBoxColumn { HeaderText = "Project has", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 45, ReadOnly = true, DefaultCellStyle = new DataGridViewCellStyle { WrapMode = DataGridViewTriState.True } });
-        AddColumn(new DataGridViewTextBoxColumn { HeaderText = "Standard", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 45, ReadOnly = true, DefaultCellStyle = new DataGridViewCellStyle { WrapMode = DataGridViewTriState.True } });
-        AddColumn(new DataGridViewTextBoxColumn { HeaderText = "Repair", Width = 130, ReadOnly = true });
-        grid.CurrentCellDirtyStateChanged += (_, _) =>
+        GridService.AddFindingColumns(grid);
+        grid.CellClick += (_, e) =>
         {
-            if (grid.IsCurrentCellDirty)
+            if (e.RowIndex >= 0 && e.ColumnIndex == 0)
             {
-                grid.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                ToggleRow(e.RowIndex);
+            }
+            else if (e.RowIndex >= 0 && GridService.IsNoteRow(grid, e.RowIndex))
+            {
+                ExplainNoteRow(e.RowIndex);
             }
         };
-        grid.CellValueChanged += (_, e) =>
+        grid.KeyDown += (_, e) =>
         {
-            if (loadingGrid || e.RowIndex < 0 || e.ColumnIndex != 0)
+            if (e.KeyCode == Keys.Space && grid.CurrentRow is not null)
             {
-                return;
-            }
-
-            if (grid.Rows[e.RowIndex].Tag is Finding finding)
-            {
-                finding.Selected = grid.Rows[e.RowIndex].Cells[0].Value is true;
-                UpdateSummary();
+                ToggleRow(grid.CurrentRow.Index);
+                e.Handled = true;
+                e.SuppressKeyPress = true;
             }
         };
+        grid.CellPainting += (_, e) => GridService.PaintFindingCell(grid, e);
         root.Controls.Add(grid, 0, 1);
 
         var bar = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
@@ -141,15 +137,17 @@ public sealed class DoctorForm : Form
         bar.Controls.Add(summaryLabel);
         root.Controls.Add(bar, 0, 2);
 
-        var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4 };
+        var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 5 };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
         footer.Controls.Add(statusLabel, 0, 0);
-        footer.Controls.Add(reportButton, 1, 0);
-        footer.Controls.Add(repairButton, 2, 0);
-        footer.Controls.Add(closeButton, 3, 0);
+        footer.Controls.Add(helpButton, 1, 0);
+        footer.Controls.Add(reportButton, 2, 0);
+        footer.Controls.Add(repairButton, 3, 0);
+        footer.Controls.Add(closeButton, 4, 0);
         root.Controls.Add(footer, 0, 3);
         Controls.Add(root);
 
@@ -160,17 +158,29 @@ public sealed class DoctorForm : Form
         tickAllButton.Click += (_, _) => Tick(f => f.Action != RepairAction.None);
         untickAllButton.Click += (_, _) => Tick(_ => false);
         showInfoBox.CheckedChanged += (_, _) => FillGrid();
+        helpButton.Click += (_, _) => ShowHelp();
         reportButton.Click += (_, _) => ShowReport();
         repairButton.Click += (_, _) => Repair();
         closeButton.Click += (_, _) => Close();
         AcceptButton = examineButton;
         CancelButton = closeButton;
-    }
 
-    private void AddColumn(DataGridViewColumn column)
-    {
-        column.SortMode = DataGridViewColumnSortMode.NotSortable;
-        grid.Columns.Add(column);
+        tips.SetToolTip(projectBox, "The AutoCAD Electrical project (.wdp) to examine. Recent projects are in the list.");
+        tips.SetToolTip(browseButton, "Pick a project .wdp file. It is examined straight away.");
+        tips.SetToolTip(activeButton, "Examine the project that is active in AutoCAD Electrical now.");
+        tips.SetToolTip(standardLabel, "The LSE template the project is compared with. Red means the bundled copy is in use because the template path in Settings is not reachable.");
+        tips.SetToolTip(checkDrawingsBox, "Also open every drawing of the project in the background and compare its WD_M block, LSE title block and wire layers with the template drawing. Slower. Drawings that are open in AutoCAD are skipped; close them first.");
+        tips.SetToolTip(examineButton, "Compare the project with the LSE template and list the findings. Nothing is changed.");
+        tips.SetToolTip(grid, "One row per finding. Click the Fix box to tick or untick a repair; rows that say note are information only. Hover over a cell for the full text and the doctor's note.");
+        tips.SetToolTip(tickRecommendedButton, "Tick the safe repairs LSE recommends (missing lines, missing files, missing WD_M, missing or off-standard wire layers). Judgement calls stay unticked.");
+        tips.SetToolTip(tickAllButton, "Tick every repair the doctor can make, judgement calls included. Read them before you repair.");
+        tips.SetToolTip(untickAllButton, "Clear every tick.");
+        tips.SetToolTip(showInfoBox, "Show or hide the Info rows (notes with nothing to repair).");
+        tips.SetToolTip(summaryLabel, "Status, number of findings, how many repairs LSE recommends and how many are ticked.");
+        tips.SetToolTip(helpButton, "A guide to this window: the steps, the grid, why some rows cannot be ticked, what Repair ticked does, how to undo.");
+        tips.SetToolTip(reportButton, "The findings as text you can save or copy, for example into the troubleshooting document.");
+        tips.SetToolTip(repairButton, "Apply the ticked repairs. Every file is backed up first, each change is checked afterwards, and everything is rolled back if one step fails.");
+        tips.SetToolTip(closeButton, "Close this window. If the active project was repaired it is reloaded so the Project Manager shows the new settings.");
     }
 
     private void LoadStandard()
@@ -188,7 +198,7 @@ public sealed class DoctorForm : Form
             standard = null;
             standardLabel.Text = "Standard could not be loaded: " + ex.Message;
             standardLabel.ForeColor = Color.Firebrick;
-            Status("Fix the template path in LSEDOCTORSETTINGS, then press Examine again.");
+            Status("Fix the template path in LSEDOCTORSETTINGS, then press Examine again. Press Help for details.");
         }
     }
 
@@ -254,9 +264,21 @@ public sealed class DoctorForm : Form
             }
 
             FillGrid();
-            Status(diagnosis.Healthy
-                ? "Healthy: the project matches the LSE standard." + (diagnosis.DrawingsChecked ? "" : " Drawing contents were not checked.")
-                : $"{diagnosis.Status}. {diagnosis.Recommended} recommended repair(s) are ticked; review them and press Repair ticked.");
+            string open = diagnosis.OpenDrawings > 0
+                ? $" {diagnosis.OpenDrawings} drawing(s) are open in AutoCAD and were not checked; close them and press Examine again."
+                : "";
+            if (diagnosis.Healthy)
+            {
+                Status("Healthy: the project matches the LSE standard." + (diagnosis.DrawingsChecked ? "" : " Drawing contents were not checked.") + open);
+            }
+            else if (diagnosis.Recommended > 0)
+            {
+                Status($"{diagnosis.Status}. {diagnosis.Recommended} recommended repair(s) are ticked; review them and press Repair ticked.{open}");
+            }
+            else
+            {
+                Status($"{diagnosis.Status}. No repair is recommended automatically; tick the rows you agree with, or press Help.{open}");
+            }
         }
         catch (Exception ex)
         {
@@ -274,42 +296,31 @@ public sealed class DoctorForm : Form
 
     private void FillGrid()
     {
-        loadingGrid = true;
-        try
-        {
-            grid.Rows.Clear();
-            if (diagnosis is not null)
-            {
-                foreach (Finding finding in diagnosis.Findings)
-                {
-                    if (!showInfoBox.Checked && finding.Severity == Severity.Info)
-                    {
-                        continue;
-                    }
+        GridService.FillFindings(grid, diagnosis, showInfoBox.Checked);
+        UpdateSummary();
+    }
 
-                    int index = grid.Rows.Add(finding.Selected, finding.Severity.ToString(), finding.Category, finding.Item, DiagnosisService.Short(finding.Current, 400), DiagnosisService.Short(finding.Standard, 400), finding.ActionText);
-                    DataGridViewRow row = grid.Rows[index];
-                    row.Tag = finding;
-                    row.Cells[0].ReadOnly = finding.Action == RepairAction.None;
-                    row.Cells[4].ToolTipText = finding.Current;
-                    row.Cells[5].ToolTipText = finding.Standard;
-                    row.Cells[6].ToolTipText = finding.Note;
-                    row.Cells[3].ToolTipText = finding.Note;
-                    row.DefaultCellStyle.BackColor = finding.Severity switch
-                    {
-                        Severity.Error => Color.FromArgb(255, 228, 225),
-                        Severity.Warning => Color.FromArgb(255, 250, 205),
-                        _ => SystemColors.Window
-                    };
-                }
-            }
-        }
-        finally
+    private void ToggleRow(int rowIndex)
+    {
+        Finding? finding = GridService.ToggleFinding(grid, rowIndex);
+        if (finding is null)
         {
-            loadingGrid = false;
+            ExplainNoteRow(rowIndex);
+            return;
         }
 
         UpdateSummary();
+        Status(finding.Selected
+            ? $"Ticked: {finding.Item} ({finding.ActionText}). Press Repair ticked when you have ticked everything you want."
+            : $"Unticked: {finding.Item}.");
+    }
+
+    private void ExplainNoteRow(int rowIndex)
+    {
+        if (GridService.IsNoteRow(grid, rowIndex) && grid.Rows[rowIndex].Tag is Finding finding)
+        {
+            Status("Information only, nothing to tick: " + finding.Item + ". " + finding.Note);
+        }
     }
 
     private void UpdateSummary()
@@ -338,6 +349,13 @@ public sealed class DoctorForm : Form
         }
 
         FillGrid();
+        Status(diagnosis.Selected == 0 ? "Nothing is ticked." : $"{diagnosis.Selected} repair(s) ticked. Press Repair ticked to apply them.");
+    }
+
+    private void ShowHelp()
+    {
+        using var form = new TextReportForm("LSE_Doctor - help", HelpText.Fix(HelpText.Doctor + "\n\n\n" + HelpText.Findings), true);
+        form.ShowDialog(this);
     }
 
     private void ShowReport()
@@ -396,7 +414,7 @@ public sealed class DoctorForm : Form
         catch (Exception ex)
         {
             bool refused = ex.Message.Contains("Nothing was changed", StringComparison.Ordinal) || ex.Message.Contains("Nothing is ticked", StringComparison.Ordinal);
-            Status(refused ? "Repair refused before any change was made." : "Repair failed and was rolled back.");
+            Status(refused ? "Repair refused before any change was made. Press Help for what the message means." : "Repair failed and was rolled back. Save the message and report it.");
             using var form = new TextReportForm(refused ? "LSE_Doctor - repair refused" : "LSE_Doctor - repair FAILED (rolled back)", ex.Message);
             form.ShowDialog(this);
             Examine();
@@ -411,6 +429,7 @@ public sealed class DoctorForm : Form
     private void Status(string message)
     {
         statusLabel.Text = message;
+        tips.SetToolTip(statusLabel, message);
         statusLabel.Refresh();
     }
 }

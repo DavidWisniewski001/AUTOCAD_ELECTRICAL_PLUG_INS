@@ -37,7 +37,7 @@ Rows that show note instead of a box are report-only. They are:
 - a non-standard wire layer that still has objects on it (move or delete the objects first, then examine again);
 - a WD_M attribute an older WD_M block does not have (use the AutoCAD Electrical command Update to New WD_M Block, then examine again);
 - a project that lists no drawings.
-Untick ""Show informational rows"" to hide them.
+Untick ""Show informational rows"" to hide the ones whose Severity is Info.
 
 Drawings that are open in AutoCAD
 The doctor never writes to a drawing that is open in the editor. When you examine the active project its open drawings are listed as ""open in the editor"" and skipped, and the status line counts them. Close those drawings (the project stays active), press Examine again, and their WD_M and wire-layer checks run.

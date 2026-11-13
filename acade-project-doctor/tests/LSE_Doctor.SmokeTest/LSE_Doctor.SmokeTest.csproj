@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Console smoke test for the parts of LSE_Doctor that run without AutoCAD: the findings grid and the scan grid on a
+       real DataGridView (tick handling, note rows, painting), the help texts and the build tag. Build LSE_Doctor in
+       Release first, then from the plugin folder:
+         dotnet run -c Release - -project tests\LSE_Doctor.SmokeTest\LSE_Doctor.SmokeTest.csproj
+       It never touches a project, a drawing or the settings file. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="LSE_Doctor"><HintPath>..\..\bin\Release\LSE_Doctor.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>
