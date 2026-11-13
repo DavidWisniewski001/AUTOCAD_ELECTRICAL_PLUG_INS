@@ -78,7 +78,8 @@ Vault working folder.
 | `LSE_Env-2026-11-12-r7.zip` | AutoCAD Electrical 2026 | `acade-project-env\` | `LSEENV`, `LSEENVWIRES`, `LSEENVPROFILES`, `LSEENVSNAPSHOT`, `LSEENVSETTINGS`, `LSEENVDIAG` | Compiles Release, 0 warnings. 89-check smoke test (text round trip, rules, profiles, wire-network engine, planner, apply, rollback, open-drawing planning, help texts, error log, plan grid on a real DataGridView, build label) through fake drawing bridges passed. r2: open drawings supported, grid UX fixed. r3: Help buttons and tooltips in every dialog. r4: three-part error dialog with a log file. r6: plan grid rebuilt without cell replacement (`PlanGridService`), build tag `[2026-11-12-r7]` in every window title, the error dialog, the log and `LSEENVDIAG`. First run in AutoCAD Electrical on 2026-11-12 (dialog and Plan seen in the host; the writes not yet). The setting map (which `?[n]` line / `WD_M` attribute holds each setting) is inferred, not verified: run `LSEENVSNAPSHOT` first. r7: `VaultProbe` guard (one refusal naming every read-only file, check-in reminder in the apply log), Vault lines in `LSEENVDIAG`, build tag `[2026-11-12-r7]`, 91-check smoke test. |
 | `LSE.Inventor.FootprintTools-2026-11-12-r7.zip` | Autodesk Inventor 2026 | `inventor-addin\` | Ribbon: Tools tab, **LSE** panel: *LSE Footprint*, *LSE Settings* | Source only. Never compiled (needs the Inventor interop assembly). Same content as r4; a lock / assembly-code fix is pending in the working tree and is not in this package. r7: same rewritten Vault code as Catalog Tools (`src\VaultCatalogService.cs`, 27-check `tests\VaultFakeTest`), Vault test inside the Settings **Test** button, read-only refusal for the lookup / catalog; still never compiled against Inventor. The paused lock / assembly-code fix in `docs\pending` stays out of the zip. |
 | `LSE-Plugins-NETLOAD-READY-2026-11-12-r7.zip` | AutoCAD Electrical 2026 | `LSE-Plugins-NETLOAD\` | `LSE-NETLOAD-ALL.lsp` (drag into AutoCAD; defines `LSELOAD`), `LSE-NETLOAD-ALL.scr`, `NETLOAD-README.md` | **Prebuilt binaries, no build needed.** The five AutoCAD plugins above as `bin\Release\` output (DLL, `.pdb`, JSON, `standard\`, `profiles\`), one sub-folder per DLL, plus `ApplicationPlugins\` with the five bundles already filled. Built 2026-11-12 against the AutoCAD.NET 25.1.0 reference package; each DLL references only the AutoCAD 2026 managed assemblies and the .NET 8 shared framework. Not yet loaded in AutoCAD. |
-| `LSE-Plugins-ALL-2026-11-12-r7.zip` | all of the above | one folder per plugin plus `agents\`, `README.docx`, `STYLE-GUIDE.docx`, `Locations.txt`, `README.md` and `LSE-Plugins-NETLOAD\` (the prebuilt binaries) | | The same content as the seven zips, in one download. |
+
+There is no combined "ALL" zip from r7 on: it only repeated the seven zips above. The agents, `README`, `STYLE-GUIDE` and docs are in the GitHub repo `DavidWisniewski001/AUTOCAD_ELECTRICAL_PLUG_INS`; `Locations.txt` is in the Drive Reference folder.
 
 What each plugin does, in one line:
 
@@ -133,11 +134,14 @@ The rest of this section is for rebuilding from source.
 ### 3.1 Unblock and extract
 
 Windows marks downloaded zips as "from the internet". AutoCAD can refuse to NETLOAD a DLL built from blocked files.
-Unblock the zip before extracting (right-click, Properties, **Unblock**, or in PowerShell):
+Unblock each plugin zip before extracting (right-click, Properties, **Unblock**, or in PowerShell). Extracting them all into
+`C:\LSE-Plugins` gives one folder per plugin:
 
 ```powershell
-Unblock-File "C:\Downloads\LSE-Plugins-ALL-2026-11-12-r7.zip"
-Expand-Archive "C:\Downloads\LSE-Plugins-ALL-2026-11-12-r7.zip" -DestinationPath "C:\LSE-Plugins"
+Get-ChildItem "C:\Downloads\LSE*-2026-11-12-r7.zip" -Exclude "*NETLOAD-READY*" | ForEach-Object {
+    Unblock-File $_.FullName
+    Expand-Archive $_.FullName -DestinationPath "C:\LSE-Plugins" -Force
+}
 ```
 
 ### 3.2 Build the five AutoCAD Electrical plugins
