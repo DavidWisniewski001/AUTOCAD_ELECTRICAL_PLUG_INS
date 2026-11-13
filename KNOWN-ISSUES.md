@@ -45,16 +45,7 @@ Line numbers refer to that commit.
 
 ## Wire To/From (acade-wire-tofrom)
 
-- Changing Annotate or Current drawing only after Plan applies the old plan (`ToFromForm.cs:25-26`).
-- The Apply button is not rechecked when Export CSV is toggled (`ToFromForm.cs:451`).
-- "Tick recommended" ticks the same rows as "Tick all" (`ToFromForm.cs:227`).
-- The sheet number never reaches the CSV (`IdentifierService.cs:40`).
-- A failed run deletes the previous outputs and leaves no entry in the project report (`RunService.cs:25-34`). The smoke test masks the deletion (`tests/.../Program.cs:244`).
-- With `repositionOnRerun` on, labels creep along the wire on every run (`LabelWriter.cs:206-213,245`).
-- Discovery strips comments from the config and recases its keys (`SettingsService.cs:17`).
-- The "tab" delimiter is read as the letter t (`ReportImport.cs:8`).
-- The Jet 4 provider is dropped from the fallback list (`SettingsService.cs:26`).
-- It is in no release (r7 included), has no build tag and has no Vault probe.
+All ten items listed here on 2026-11-13 were fixed in LSE_ToFrom build 2026-11-13-r1 (commit 166e5a8, smoke test 109/109). See `acade-wire-tofrom/docs/DEVELOPER-GUIDE.md`. Still open: it has no Vault probe, and it isn't part of the combined LSE-Plugins release.
 
 ## Footprint Tools (inventor-addin)
 
