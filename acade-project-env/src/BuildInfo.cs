@@ -4,7 +4,7 @@ namespace LSE.AutoCADElectrical.ProjectEnvironment;
 /// LSEENVDIAG so that a stale DLL left in the bundle folder is recognised at a glance.</summary>
 public static class BuildInfo
 {
-    public const string Release = "2026-11-12-r6";
+    public const string Release = "2026-11-12-r7";
 
     public static string Label => "LSE_Env " + Release;
 

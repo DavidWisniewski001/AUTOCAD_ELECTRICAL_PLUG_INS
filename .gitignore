@@ -22,3 +22,6 @@ __pycache__/
 *.pyc
 Thumbs.db
 .DS_Store
+
+# Claude Code worktrees (per-session scratch copies)
+.claude/worktrees/

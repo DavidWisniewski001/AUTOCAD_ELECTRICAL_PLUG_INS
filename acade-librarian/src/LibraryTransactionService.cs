@@ -1,7 +1,9 @@
 namespace LSE.AutoCADElectrical.Librarian;
 public static class LibraryTransactionService{
  public static LibraryResult Execute(AppSettings s,LibraryStandard std,LibraryRequest q,Action<string>? progress=null){
-  Validate(s,std,q);var r=std.Rule(q.Kind);string menuPath=s.MenuPathFor(r);string stamp=DateTime.Now.ToString("yyyyMMdd_HHmmss");string backup=Path.Combine(s.BackupFolder,stamp);Directory.CreateDirectory(backup);
+  Validate(s,std,q);var r=std.Rule(q.Kind);string menuPath=s.MenuPathFor(r);
+  var writeTargets=new List<string>{menuPath};if(q.RegisterLookup)writeTargets.Add(s.FootprintLookupPath);if(q.AddCatalogRecord)writeTargets.Add(s.CatalogPath);if(q.InPlace)writeTargets.Add(q.TargetPath);VaultProbe.RequireWritable(writeTargets);
+  string stamp=DateTime.Now.ToString("yyyyMMdd_HHmmss");string backup=Path.Combine(s.BackupFolder,stamp);Directory.CreateDirectory(backup);
   var log=new List<string>{$"Started: {DateTime.Now:s} by {Environment.UserName}@{Environment.MachineName}",$"Kind: {r.DisplayName}",$"Source: {(q.FromCurrentDrawing?"block "+q.SourceBlockName+" in the current drawing":q.SourcePath)}",$"Target: {q.TargetPath}",$"Icon menu: {menuPath}",$"Backup folder: {backup}"};void Log(string m){log.Add(m);progress?.Invoke(m);}foreach(string m in log)progress?.Invoke(m);
   string menuBackup=Path.Combine(backup,Path.GetFileName(menuPath));string? lookupBackup=q.RegisterLookup?Path.Combine(backup,Path.GetFileName(s.FootprintLookupPath)):null;
   using var gate=LibraryLock.Acquire(s.IconMenuFolder,log);File.Copy(menuPath,menuBackup,true);if(lookupBackup is not null)File.Copy(s.FootprintLookupPath,lookupBackup,true);Log("Backups: PASS");
@@ -24,7 +26,9 @@ public static class LibraryTransactionService{
    if(q.RegisterLookup){var fp=new FootprintLookupService(s.FootprintLookupPath);fp.EnsureTable(q.LookupManufacturer);fp.Upsert(q.LookupManufacturer,q.LookupCatalog,q.TargetPath,q.Description);lookupWritten=true;if(fp.Find(q.LookupManufacturer,q.LookupCatalog) is null)throw new InvalidOperationException("Read-back of the footprint lookup row failed.");Log($"Footprint lookup [{q.LookupManufacturer}] {q.LookupCatalog} -> {q.TargetPath}: PASS");}
    else if(q.Kind is LibraryKind.PanelFootprint or LibraryKind.Nameplate)Log("Footprint lookup: SKIPPED (not requested). AutoCAD Electrical will still insert the footprint from the icon menu; catalog-driven insertion needs a footprint_lookup.mdb row.");
    if(q.AddCatalogRecord){var naming=NamingWorkbookService.Load(s);Log("Catalog record: "+q.CatalogRecord!.Summary+" (naming standard from "+(naming.FromWorkbook?"workbook ":"JSON snapshot ")+naming.Source+")");var cr=CatalogTransactionService.Run(s,naming,q.PartNumber!,q.CatalogRecord,Log);result.PartNumber=cr.PartNumber;Log($"Catalog record added with LSE part number {cr.PartNumber} (catalog backup in {cr.BackupFolder})");}
-   Log("Status: SUCCESS");File.WriteAllLines(Path.Combine(backup,"LibraryReport.txt"),log);
+   Log("Status: SUCCESS");
+   var touched=new List<string>();if(menuWritten)touched.Add(menuPath);if(createdDrawing||q.InPlace)touched.Add(q.TargetPath);if(createdImage)touched.Add(imagePath);if(lookupWritten)touched.Add(s.FootprintLookupPath);if(q.AddCatalogRecord)touched.Add(s.CatalogPath);foreach(string m in VaultProbe.CheckinReminder(touched))Log(m);
+   File.WriteAllLines(Path.Combine(backup,"LibraryReport.txt"),log);
    s.RecentItems.RemoveAll(x=>x.Equals(q.TargetPath,StringComparison.OrdinalIgnoreCase));s.RecentItems.Insert(0,q.TargetPath);if(s.RecentItems.Count>25)s.RecentItems.RemoveRange(25,s.RecentItems.Count-25);SettingsService.Save(s);
    result.Report=string.Join(Environment.NewLine,log);return result;}
   catch(Exception ex){Log("ERROR: "+ex.Message);

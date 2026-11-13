@@ -1056,7 +1056,7 @@ public sealed class NewProjectForm : Form
             MessageBox.Show(
                 $"Project created.\r\n\r\n{Result.WdpPath}\r\n{Result.DrawingPaths.Count} drawing(s)\r\n\r\n" +
                 (request.ActivateProject ? "The project will be activated in the Project Manager when this wizard closes." : "Open the project from the Project Manager (Open Project) to start working.") +
-                "\r\n\r\nRemember to check the new job folder into the vault.",
+                "\r\n\r\nAdd the new job folder to Vault (Vault tab > Add Files, or Vault Explorer) so other workstations see it; the report lists every file.",
                 "LSE Project Tools", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (System.Exception exception)

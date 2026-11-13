@@ -17,6 +17,7 @@
     <HasAcad>false</HasAcad>
     <HasAcad Condition="Exists('$(AcadDir)\acdbmgd.dll')">true</HasAcad>
   </PropertyGroup>
+  <ItemGroup><Compile Remove="tests\**" /></ItemGroup>
   <ItemGroup Condition="'$(HasAcad)' == 'true'">
     <Reference Include="accoremgd"><HintPath>$(AcadDir)\accoremgd.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="acdbmgd"><HintPath>$(AcadDir)\acdbmgd.dll</HintPath><Private>false</Private></Reference>

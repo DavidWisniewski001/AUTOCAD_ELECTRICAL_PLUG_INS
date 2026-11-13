@@ -100,7 +100,7 @@ Good to know
 Recommended means safe and expected. Copies of .wdt and .wdl files, and un-fixing numbers when LSE did not write them, are never recommended: tick them on purpose.
 Lines the customer must not change (library and menu paths) are never touched.
 Report shows the plan as text. Backups are in <project>\_LSE_ENV_BACKUP. The log is <project>\LSE_EnvReport.txt.
-The build tag is at the end of every LSE_Env window title, for example [2026-11-12-r6]. If it is older than the release you installed, AutoCAD Electrical is still running the previous LSE_Env.dll: close AutoCAD Electrical completely, replace the DLL in the bundle's Contents folder, and start it again.
+The build tag is at the end of every LSE_Env window title, for example [2026-11-12-r7]. If it is older than the release you installed, AutoCAD Electrical is still running the previous LSE_Env.dll: close AutoCAD Electrical completely, replace the DLL in the bundle's Contents folder, and start it again.
 ";
  public const string WireScheme=@"SWITCH WIRE-NUMBER SCHEME (LSEENVWIRES) - HELP
 

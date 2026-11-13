@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0-windows</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><AssemblyName>Connectivity.Application.VaultBase</AssemblyName><RootNamespace>Fake</RootNamespace><AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Vdf/Vdf.csproj" /></ItemGroup>
+</Project>

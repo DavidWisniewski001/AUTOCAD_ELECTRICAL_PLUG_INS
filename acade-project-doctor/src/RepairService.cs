@@ -7,7 +7,7 @@ public static class RepairService {
   Log($"Started: {DateTime.Now:s} by {Environment.UserName}@{Environment.MachineName}");Log("Project: "+dx.WdpPath);Log("Standard: "+dx.Standard.WdpPath+(dx.Standard.Bundled?" (bundled copy)":""));Log("Rules: "+dx.Rules.Source);Log($"Repairs ticked: {sel.Count}");
   string wdtPath=TextFileService.ExistingCaseInsensitive(TextFileService.MappingPath(dx.WdpPath))??TextFileService.MappingPath(dx.WdpPath);string wdlPath=TextFileService.ExistingCaseInsensitive(TextFileService.LabelsPath(dx.WdpPath))??TextFileService.LabelsPath(dx.WdpPath);string aepxPath=TextFileService.ExistingCaseInsensitive(TextFileService.ConfigurationPath(dx.WdpPath))??TextFileService.ConfigurationPath(dx.WdpPath);
   var touched=new List<string>();if(sel.Any(f=>f.Target=="wdp"))touched.Add(dx.WdpPath);if(sel.Any(f=>f.Target=="wdt"&&f.Action!=RepairAction.CreateFile))touched.Add(wdtPath);if(sel.Any(f=>f.Target=="wdl"&&f.Action!=RepairAction.CreateFile))touched.Add(wdlPath);touched.AddRange(sel.Where(f=>f.IsDrawingAction).Select(f=>f.Target));
-  foreach(string f in touched.Distinct(StringComparer.OrdinalIgnoreCase).Where(File.Exists))if((File.GetAttributes(f)&FileAttributes.ReadOnly)!=0)throw new InvalidOperationException("Read-only file: "+f+". If the project is under Vault control check it out first; otherwise clear the read-only attribute. Nothing was changed.");
+  VaultProbe.RequireWritable(touched.Distinct(StringComparer.OrdinalIgnoreCase).Where(File.Exists));
   res.BackupFolder=Path.Combine(dx.Folder,s.BackupFolderName,DateTime.Now.ToString("yyyyMMdd_HHmmss"));var backed=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);var created=new List<string>();
   try{
    Directory.CreateDirectory(res.BackupFolder);foreach(string f in touched.Distinct(StringComparer.OrdinalIgnoreCase).Where(File.Exists)){string b=Path.Combine(res.BackupFolder,Path.GetFileName(f));for(int n=2;File.Exists(b);n++)b=Path.Combine(res.BackupFolder,Path.GetFileNameWithoutExtension(f)+"("+n+")"+Path.GetExtension(f));File.Copy(f,b,true);File.SetAttributes(b,FileAttributes.Normal);backed[f]=b;Log("Backed up "+Path.GetFileName(f)+" to "+res.BackupFolder);}
@@ -26,6 +26,7 @@ public static class RepairService {
    foreach(var f in sel){bool still;if(f.IsDrawingAction){if(!inspected.TryGetValue(f.Target,out var after)){after=DrawingInspectionService.Inspect(f.Target,dx.Rules.WdmBlockName,dx.Standard.TitleBlockNames);inspected[f.Target]=after;}still=!WireLayerService.Resolved(f,after,dx.TemplateDrawing,dx.Rules);}
     else still=res.After.Findings.Any(a=>a.Key==f.Key&&a.Action==f.Action);if(still){res.Unresolved.Add(f);Log("UNRESOLVED: "+f.Category+" / "+f.Item);}}
    Log(res.Unresolved.Count==0?$"Status: SUCCESS ({res.Applied} repair(s) applied, all verified)":$"Status: PARTIAL ({res.Applied} repair(s) applied, {res.Unresolved.Count} still reported)");
+   foreach(string m in VaultProbe.CheckinReminder(touched.Concat(created)))Log(m);
    res.ReportPath=Path.Combine(dx.Folder,"LSE_DoctorReport.txt");try{File.AppendAllLines(res.ReportPath,res.Log.Append(""));}catch(Exception ex){Log("Report could not be written to the project folder: "+ex.Message);}
    Prune(Path.Combine(dx.Folder,s.BackupFolderName),s.BackupsToKeep,Log);SettingsService.Remember(s,dx.WdpPath);return res;}
   catch(Exception ex){Log("ERROR: "+ex.Message);

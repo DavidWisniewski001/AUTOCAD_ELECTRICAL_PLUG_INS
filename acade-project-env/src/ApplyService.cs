@@ -7,7 +7,7 @@ public static class ApplyService {
   var res=new ApplyResult{Plan=plan};void Log(string m){res.Log.Add(m);progress?.Invoke(m);}
   Log($"Started: {DateTime.Now:s} by {Environment.UserName}@{Environment.MachineName}");Log("Project: "+st.WdpPath);Log("Profile: "+plan.ProfileName+"  |  Wire scheme: "+plan.SchemeName);Log("Rules: "+plan.Rules.Source);Log($"Changes ticked: {sel.Count}");
   string markerPath=MarkerService.PathFor(st.WdpPath);var touched=new List<string>();if(sel.Any(c=>c.Target=="wdp"))touched.Add(st.WdpPath);touched.AddRange(sel.Where(c=>c.Kind==ChangeKind.CopyFile).Select(c=>c.Target));touched.AddRange(sel.Where(c=>c.IsDrawing).Select(c=>c.Target));if(sel.Any(c=>c.Kind==ChangeKind.Marker))touched.Add(markerPath);
-  foreach(string f in touched.Distinct(StringComparer.OrdinalIgnoreCase).Where(File.Exists))if((File.GetAttributes(f)&FileAttributes.ReadOnly)!=0)throw new InvalidOperationException("Read-only file: "+f+". If the project is under Vault control check it out first; otherwise clear the read-only attribute. Nothing was changed.");
+  VaultProbe.RequireWritable(touched.Distinct(StringComparer.OrdinalIgnoreCase).Where(File.Exists));
   res.BackupFolder=Path.Combine(st.Folder,s.BackupFolderName,DateTime.Now.ToString("yyyyMMdd_HHmmss"));var backed=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);var created=new List<string>();
   try{
    Directory.CreateDirectory(res.BackupFolder);foreach(string f in touched.Distinct(StringComparer.OrdinalIgnoreCase).Where(File.Exists)){string b=Path.Combine(res.BackupFolder,Path.GetFileName(f));for(int n=2;File.Exists(b);n++)b=Path.Combine(res.BackupFolder,Path.GetFileNameWithoutExtension(f)+"("+n+")"+Path.GetExtension(f));File.Copy(f,b,true);File.SetAttributes(b,FileAttributes.Normal);backed[f]=b;Log("Backed up "+Path.GetFileName(f)+" to "+res.BackupFolder);}
@@ -34,6 +34,7 @@ public static class ApplyService {
      case ChangeKind.Marker:still=!File.Exists(markerPath);break;}
     if(still){res.Unresolved.Add(c);Log("UNRESOLVED: "+c.Scope+" / "+c.Item);}}
    Log(res.Unresolved.Count==0?$"Status: SUCCESS ({res.Applied} change(s) applied, all verified)":$"Status: PARTIAL ({res.Applied} change(s) applied, {res.Unresolved.Count} not verified)");
+   foreach(string m in VaultProbe.CheckinReminder(touched.Concat(created).Where(f=>!st.Drawings.Any(d=>d.OpenInEditor&&d.Path.Equals(f,StringComparison.OrdinalIgnoreCase))).Distinct(StringComparer.OrdinalIgnoreCase)))Log(m);
    res.ReportPath=Path.Combine(st.Folder,"LSE_EnvReport.txt");try{File.AppendAllLines(res.ReportPath,res.Log.Append(""));}catch(Exception ex){Log("Report could not be written to the project folder: "+ex.Message);}
    Prune(Path.Combine(st.Folder,s.BackupFolderName),s.BackupsToKeep,Log);SettingsService.Remember(s,st.WdpPath);return res;}
   catch(Exception ex){Log("ERROR: "+ex.Message);

@@ -22,6 +22,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Remove="tests\**" />
     <None Include="LSE.Inventor.FootprintTools.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="config\LseNamingStandard.json" Link="LseNamingStandard.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

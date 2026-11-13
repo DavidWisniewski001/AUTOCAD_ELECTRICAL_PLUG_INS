@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Regression test for VaultCatalogService + VaultProbe against a stub Vault SDK that carries the real type names and the Vault 2025/2026 constructor shapes. No Vault, AutoCAD or Inventor needed: dotnet build, then dotnet run (expect ALL PASS). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/VaultCatalogService.cs" Link="VaultCatalogService.cs" />
+    <Compile Include="../../src/VaultProbe.cs" Link="VaultProbe.cs" />
+    <Compile Remove="FakeSdk/**" />
+    <ProjectReference Include="FakeSdk/VaultBase/VaultBase.csproj" />
+  </ItemGroup>
+</Project>

@@ -11,10 +11,10 @@
     <PlatformTarget>x64</PlatformTarget>
     <RootNamespace>LSE.AutoCADElectrical.ProjectEnvironment</RootNamespace>
     <AssemblyName>LSE_Env</AssemblyName>
-    <Version>1.6.0</Version>
-    <AssemblyVersion>1.6.0.0</AssemblyVersion>
-    <FileVersion>1.6.0.0</FileVersion>
-    <InformationalVersion>2026-11-12-r6</InformationalVersion>
+    <Version>1.7.0</Version>
+    <AssemblyVersion>1.7.0.0</AssemblyVersion>
+    <FileVersion>1.7.0.0</FileVersion>
+    <InformationalVersion>2026-11-12-r7</InformationalVersion>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AcadDir Condition="'$(AcadDir)' == ''">C:\Program Files\Autodesk\AutoCAD 2026</AcadDir>

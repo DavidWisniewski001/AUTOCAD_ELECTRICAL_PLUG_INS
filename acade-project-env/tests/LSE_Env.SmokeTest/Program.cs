@@ -249,6 +249,15 @@ var bridge = new HostBridge
     Throws(() => ApplyService.Execute(plan, settings, bridge), "Read-only", "read-only project refused");
     File.SetAttributes(wdp, FileAttributes.Normal);
     Check(Directory.GetDirectories(backups).Length == backupsBefore, "no backup made for the refused run");
+    string markerFile = MarkerService.PathFor(wdp);
+    File.SetAttributes(wdp, FileAttributes.ReadOnly);
+    File.SetAttributes(markerFile, FileAttributes.ReadOnly);
+    string refusal = "";
+    try { ApplyService.Execute(plan, settings, bridge); } catch (InvalidOperationException ex) { refusal = ex.Message; }
+    File.SetAttributes(wdp, FileAttributes.Normal);
+    File.SetAttributes(markerFile, FileAttributes.Normal);
+    Check(refusal.Contains(wdp) && refusal.Contains(markerFile) && refusal.TrimEnd().EndsWith("Nothing was changed."), "two read-only targets are both named in one refusal that ends with Nothing was changed.");
+    Check(Directory.GetDirectories(backups).Length == backupsBefore, "no backup folder created for the two-file refusal");
     Throws(() => ApplyService.Execute(new EnvPlan { Project = st }, settings, bridge), "Nothing is ticked", "empty plan refused");
 
     // capture, snapshot, diff
@@ -302,7 +311,7 @@ var bridge = new HostBridge
 }
 
 // build label
-Check(BuildInfo.Release == "2026-11-12-r6" && BuildInfo.Title("x").Contains(BuildInfo.Release) && BuildInfo.Label.StartsWith("LSE_Env "), "build label is r6 and appears in window titles");
+Check(BuildInfo.Release == "2026-11-12-r7" && BuildInfo.Title("x").Contains(BuildInfo.Release) && BuildInfo.Label.StartsWith("LSE_Env "), "build label is r7 and appears in window titles");
 Check(DiagnosticsService.BuildReport().Contains("Build: " + BuildInfo.Release), "diagnostics report names the build");
 {
     string logPath = ErrorService.Log("Build check", new InvalidOperationException("Sample failure for the smoke test."));
